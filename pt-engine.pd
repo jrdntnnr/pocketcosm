@@ -1,0 +1,14 @@
+#N canvas 80 80 460 300 10;
+#X obj 20 20 pt-source;
+#X obj 20 55 pt-cloud;
+#X obj 20 90 pt-glitch;
+#X obj 20 125 pt-arp;
+#X obj 20 160 pt-reverse;
+#X obj 20 195 pt-output;
+#X obj 150 20 pt-pitch;
+#X obj 150 55 pt-onset;
+#X obj 150 90 pt-looper;
+#X obj 150 125 pt-presets;
+#X obj 150 160 pt-midi;
+#X obj 150 195 pt-meter;
+#X obj 280 20 pt-keys-extra;

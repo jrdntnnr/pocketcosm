@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Pocketcosm
+Comment=Granular memory and freeze effect
+Exec=/home/pi/pocketcosm/toggle-pocketcosm.sh
+Icon=multimedia-volume-control
+Terminal=false
+Categories=AudioVideo;Audio;

@@ -1,0 +1,10 @@
+#N canvas 100 100 340 200 10;
+#X obj 20 20 r \$2;
+#X obj 20 50 change;
+#X obj 20 80 list prepend \$1;
+#X obj 20 110 list trim;
+#X obj 20 140 s pc-ui-out;
+#X connect 0 0 1 0;
+#X connect 1 0 2 0;
+#X connect 2 0 3 0;
+#X connect 3 0 4 0;

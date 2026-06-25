@@ -1,0 +1,22 @@
+[Unit]
+Description=Pocketcosm Pure Data granular effect
+After=graphical-session.target
+Conflicts=pocketterm-norns.target pocketterm-norns-jack.service
+
+[Service]
+Type=simple
+Environment=HOME=/home/pi
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=WAYLAND_DISPLAY=wayland-0
+ExecStartPre=-/usr/bin/systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-wlr.service
+ExecStartPre=-/usr/bin/systemctl --user stop pipewire-pulse.service pipewire-pulse.socket pipewire.service pipewire.socket wireplumber.service
+ExecStartPre=/bin/sleep 2
+ExecStart=/home/pi/pocketcosm/launch-pocketcosm.sh
+ExecStopPost=-/home/pi/pocketcosm/restore-desktop-audio.sh
+Restart=on-failure
+RestartSec=2
+SuccessExitStatus=143
+TimeoutStopSec=15
+LimitRTPRIO=70
+LimitMEMLOCK=128M
