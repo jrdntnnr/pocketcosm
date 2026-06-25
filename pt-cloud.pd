@@ -43,6 +43,8 @@
 #X obj 500 110 line~;
 #X obj 20 500 *~;
 #X obj 130 500 *~;
+#X obj 600 400 pt-modeswitch 0;
+#X obj 600 440 switch~;
 #X connect 0 0 1 0;
 #X connect 1 0 2 0;
 #X connect 2 0 3 0;
@@ -91,3 +93,4 @@
 #X connect 40 0 41 0;
 #X connect 41 0 42 1;
 #X connect 41 0 43 1;
+#X connect 44 0 45 0;

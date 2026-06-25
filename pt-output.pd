@@ -36,8 +36,8 @@
 #X obj 120 380 +~;
 #X obj 260 180 r pc-tone;
 #X obj 260 210 mtof;
-#X obj 20 410 lop~ 5000;
-#X obj 120 410 lop~ 5000;
+#X obj 20 410 bob~;
+#X obj 120 410 bob~;
 #X obj 20 445 rev3~ 88 88 3200 45;
 #X obj 300 260 r pc-space;
 #X obj 300 290 pack f 60;
@@ -95,6 +95,9 @@
 #X obj 850 620 s~ pc-out-r;
 #X obj 20 665 clip~ -0.98 0.98;
 #X obj 120 665 clip~ -0.98 0.98;
+#X msg 700 410 cutoff \$1;
+#X obj 700 360 loadbang;
+#X msg 820 410 resonance 0.6;
 #X connect 0 0 21 0;
 #X connect 1 0 22 0;
 #X connect 2 0 23 0;
@@ -142,8 +145,7 @@
 #X connect 83 0 37 0;
 #X connect 84 0 38 0;
 #X connect 35 0 36 0;
-#X connect 36 0 37 1;
-#X connect 36 0 38 1;
+#X connect 36 0 96 0;
 #X connect 37 0 39 0;
 #X connect 37 0 45 0;
 #X connect 38 0 39 1;
@@ -210,3 +212,8 @@
 #X connect 95 0 93 0;
 #X connect 94 0 80 0;
 #X connect 95 0 80 1;
+#X connect 96 0 37 0;
+#X connect 96 0 38 0;
+#X connect 97 0 98 0;
+#X connect 98 0 37 0;
+#X connect 98 0 38 0;
