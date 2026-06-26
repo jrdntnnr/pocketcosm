@@ -38,6 +38,39 @@ PINK = (238, 103, 167)
 
 MODES = ("CLOUD", "GLITCH", "ARP", "REVERSE")
 
+# Each engine (mode) exposes three variants. Selecting a variant applies a
+# curated parameter macro for that engine — the Microcosm's "effect + variation"
+# model. 4 banks x 3 = 12 selectable effect characters.
+VARIANT_NAMES = (
+    ("DRIFT", "SHIMMER", "DENSE"),
+    ("STUTTER", "SCATTER", "CHOP"),
+    ("UP", "OCTAVES", "WIDE"),
+    ("SWELL", "LONG", "WARP"),
+)
+
+VARIANTS = (
+    (  # CLOUD
+        {"grain": 320, "texture": 0.70, "density": 0.40, "feedback": 0.70, "space": 0.45, "tone": 100, "pitch": 0, "pitchmix": 0.0},
+        {"grain": 120, "texture": 0.55, "density": 0.75, "feedback": 0.80, "space": 0.60, "tone": 112, "pitch": 12, "pitchmix": 0.4},
+        {"grain": 600, "texture": 0.85, "density": 0.95, "feedback": 0.85, "space": 0.50, "tone": 96, "pitch": 0, "pitchmix": 0.0},
+    ),
+    (  # GLITCH
+        {"grain": 90, "density": 0.60, "bpm": 120, "texture": 0.40, "feedback": 0.60, "space": 0.30, "tone": 105},
+        {"grain": 60, "density": 0.85, "bpm": 140, "texture": 0.80, "feedback": 0.70, "space": 0.45, "tone": 100},
+        {"grain": 200, "density": 0.40, "bpm": 100, "texture": 0.50, "feedback": 0.50, "space": 0.35, "tone": 92},
+    ),
+    (  # ARP
+        {"grain": 180, "bpm": 120, "density": 0.60, "tone": 105, "pitch": 0, "feedback": 0.60, "space": 0.50},
+        {"grain": 150, "bpm": 128, "density": 0.70, "tone": 110, "pitch": 12, "pitchmix": 0.3, "feedback": 0.65, "space": 0.55},
+        {"grain": 240, "bpm": 96, "density": 0.50, "tone": 100, "pitch": -12, "feedback": 0.70, "space": 0.60},
+    ),
+    (  # REVERSE
+        {"grain": 300, "delay": 600, "texture": 0.60, "feedback": 0.70, "space": 0.55, "tone": 100},
+        {"grain": 700, "delay": 1200, "texture": 0.70, "feedback": 0.80, "space": 0.60, "tone": 96},
+        {"grain": 400, "delay": 800, "texture": 0.50, "feedback": 0.75, "space": 0.50, "tone": 104, "pitch": -12, "pitchmix": 0.4},
+    ),
+)
+
 
 DEFAULTS = {
     "demo": 1.0,
@@ -138,6 +171,7 @@ class PocketcosmUI:
         self.state = dict(DEFAULTS)
         self.page = 0
         self.preset_bank = 0
+        self.variant = 0
         self.running = True
         self.drag: tuple[str, pygame.Rect, SliderSpec | None] | None = None
         self.press_target: str | None = None
@@ -325,12 +359,23 @@ class PocketcosmUI:
             fill.width = max(3, round(rect.width * amount))
             self.rounded(self.screen, fill, RED if db > -1 else color, 4)
 
+    def apply_variant(self, mode: int, variant: int) -> None:
+        self.set_value("mode", mode)
+        for key, value in VARIANTS[mode][variant].items():
+            self.set_value(key, value)
+        self.variant = variant
+
     def mode_row(self) -> None:
         gap = 6
         width = (608 - gap * 3) // 4
         for index, label in enumerate(MODES):
-            rect = pygame.Rect(16 + index * (width + gap), 58, width, 42)
+            rect = pygame.Rect(16 + index * (width + gap), 58, width, 34)
             self.button(rect, label, int(self.state["mode"]) == index, CYAN)
+        mode = int(self.state["mode"]) % 4
+        w3 = (608 - gap * 2) // 3
+        for i, label in enumerate(VARIANT_NAMES[mode]):
+            rect = pygame.Rect(16 + i * (w3 + gap), 96, w3, 20)
+            self.button(rect, label, int(self.variant) == i, PURPLE)
 
     def xy_specs(self) -> tuple[SliderSpec, SliderSpec]:
         mode = int(self.state["mode"]) % 4
@@ -356,7 +401,7 @@ class PocketcosmUI:
 
     def perform_page(self) -> None:
         self.mode_row()
-        pad = pygame.Rect(16, 110, 378, 226)
+        pad = pygame.Rect(16, 122, 378, 204)
         self.rounded(self.screen, pad, PANEL, 12)
         self.rounded(self.screen, pad, LINE, 12, 2)
         for step in range(1, 4):
@@ -541,7 +586,7 @@ class PocketcosmUI:
         self.set_value(spec.key, value)
 
     def update_xy(self, pos: tuple[int, int]) -> None:
-        rect = pygame.Rect(16, 110, 378, 226)
+        rect = pygame.Rect(16, 122, 378, 204)
         x_amount = max(0, min(1, (pos[0] - rect.x) / rect.width))
         y_amount = max(0, min(1, 1 - (pos[1] - rect.y) / rect.height))
         x_spec, y_spec = self.xy_specs()
@@ -565,12 +610,17 @@ class PocketcosmUI:
             return
 
         if self.page == 0:
-            if 58 <= pos[1] <= 100 and 16 <= pos[0] <= 624:
-                index = min(3, (pos[0] - 16) // 152)
+            if 58 <= pos[1] <= 92 and 16 <= pos[0] <= 624:
+                index = min(3, (pos[0] - 16) // 153)
                 self.set_value("mode", index)
                 return
-            if pygame.Rect(16, 110, 378, 226).collidepoint(pos):
-                self.drag = ("xy", pygame.Rect(16, 110, 378, 226), None)
+            if 96 <= pos[1] <= 116 and 16 <= pos[0] <= 624:
+                w3 = (608 - 12) // 3
+                i = min(2, (pos[0] - 16) // (w3 + 6))
+                self.apply_variant(int(self.state["mode"]), i)
+                return
+            if pygame.Rect(16, 122, 378, 204).collidepoint(pos):
+                self.drag = ("xy", pygame.Rect(16, 122, 378, 204), None)
                 self.update_xy(pos)
                 return
             slider = self.slider_at(pos)
