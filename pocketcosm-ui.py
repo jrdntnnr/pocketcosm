@@ -129,6 +129,9 @@ EDIT_SLIDERS = (
 # Tempo subdivisions for synced engines (label, beat fraction).
 SUBDIVISIONS = (("1/4", 1.0), ("1/8", 0.5), ("1/8T", 1.0 / 3.0), ("1/16", 0.25), ("1/8D", 0.75))
 REVERB_STYLES = (("ROOM", 0), ("HALL", 1), ("PLATE", 2), ("SPACE", 3))
+# Sound params remembered per engine (Phase 16 per-effect memory).
+PARAM_KEYS = ("grain", "delay", "bpm", "pitch", "pitchmix", "texture",
+              "density", "onset", "tone", "feedback", "space", "mix")
 
 
 DEFAULTS = {
@@ -187,6 +190,7 @@ class PocketcosmUI:
         self.sub = [1, 0, 0, 0, 0, 0]  # remembered variant per engine
         self.subdiv = 1  # tempo subdivision index
         self.revstyle = 0  # reverb style index
+        self.engine_mem = {}  # per-engine remembered sound params
         self.running = True
         self.drag = None
         self.press_target = None
@@ -353,6 +357,18 @@ class PocketcosmUI:
         for key, value in VARIANTS[mode][variant].items():
             self.set_value(key, value)
         self.sub[mode] = variant
+
+    def switch_engine(self, new):
+        """Switch effect engine, remembering each engine's own sound."""
+        cur = int(self.state["mode"]) % 6
+        if new == cur:
+            return
+        self.engine_mem[cur] = {k: self.state[k] for k in PARAM_KEYS}
+        self.set_value("mode", new)
+        saved = self.engine_mem.get(new)
+        if saved:
+            for k, v in saved.items():
+                self.set_value(k, v)
 
     # ----- value helpers ------------------------------------------------------
     @staticmethod
@@ -740,7 +756,7 @@ class PocketcosmUI:
             mode = int(self.state["mode"]) % 6
             for i, r in enumerate(L["tabs"]):
                 if r.collidepoint(pos):
-                    self.set_value("mode", i)
+                    self.switch_engine(i)
                     return
             for i, r in enumerate(L["subs"]):
                 if r.collidepoint(pos):
@@ -845,7 +861,7 @@ class PocketcosmUI:
         elif key == pygame.K_1:
             self.toggle("demo")
         elif key in (pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_5):
-            self.set_value("mode", key - pygame.K_2)
+            self.switch_engine(key - pygame.K_2)
         elif key == pygame.K_r:
             self.toggle("loop_record")
         elif key == pygame.K_o:
