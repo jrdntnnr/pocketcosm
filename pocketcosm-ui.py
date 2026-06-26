@@ -132,7 +132,7 @@ REVERB_STYLES = (("ROOM", 0), ("HALL", 1), ("PLATE", 2), ("SPACE", 3))
 
 
 DEFAULTS = {
-    "demo": 1.0, "freeze": 0.0, "bypass": 0.0, "mode": 0.0, "subdivision": 0.5, "reverb_style": 0.0,
+    "demo": 1.0, "freeze": 0.0, "bypass": 0.0, "mode": 0.0, "subdivision": 0.5, "reverb_style": 0.0, "midiclock": 0.0,
     "grain": 220.0, "delay": 480.0, "bpm": 100.0, "pitch": 0.0, "pitchmix": 0.0,
     "texture": 0.55, "density": 0.5, "onset": 0.5, "tone": 100.0,
     "feedback": 0.72, "space": 0.35, "mix": 0.75,
@@ -583,6 +583,7 @@ class PocketcosmUI:
         L["demo"] = pygame.Rect(18, 381, 150, 36)
         L["subdiv"] = pygame.Rect(196, 381, 104, 36)
         L["revstyle"] = pygame.Rect(308, 381, 104, 36)
+        L["clk"] = pygame.Rect(420, 381, 100, 36)
         return L
 
     # ============ PAGES ======================================================
@@ -688,7 +689,7 @@ class PocketcosmUI:
         self.lamp(L["demo"], GREEN, "on" if self.state["demo"] >= 0.5 else "off", "DEMO INPUT", 14, radius=8)
         self.lamp(L["subdiv"], GOLD, "on", SUBDIVISIONS[self.subdiv][0], 15, radius=8, sublabel="SYNC")
         self.lamp(L["revstyle"], PURPLE, "on", REVERB_STYLES[self.revstyle][0], 14, radius=8, sublabel="VERB")
-        self.text("USB IN = AUTO", (622, 399), "body", 11, MUTED, "midright")
+        self.lamp(L["clk"], BLUE, "on" if self.state["midiclock"] >= 0.5 else "off", "MIDI CLK", 13, radius=8)
 
     def draw(self):
         self.screen.blit(self.faceplate, (0, 0))
@@ -815,6 +816,8 @@ class PocketcosmUI:
             elif L["revstyle"].collidepoint(pos):
                 self.revstyle = (self.revstyle + 1) % len(REVERB_STYLES)
                 self.set_value("reverb_style", REVERB_STYLES[self.revstyle][1])
+            elif L["clk"].collidepoint(pos):
+                self.toggle("midiclock")
 
     def pointer_move(self, pos):
         if not self.drag:

@@ -1,7 +1,7 @@
 #N canvas 20 20 1240 820 10;
 #X obj 20 20 netreceive -u 9001;
 #X obj 20 50 route set action sync;
-#X obj 20 85 route demo freeze bypass mode grain delay bpm pitch pitchmix texture density onset tone feedback space mix loop_record loop_play loop_reverse loop_route preset_slot loop_halfspeed subdivision reverb_style;
+#X obj 20 85 route demo freeze bypass mode grain delay bpm pitch pitchmix texture density onset tone feedback space mix loop_record loop_play loop_reverse loop_route preset_slot loop_halfspeed subdivision reverb_style midiclock;
 #X obj 20 130 t f f;
 #X obj 20 160 s pc-demo;
 #X obj 85 160 s pc-demo-r;
@@ -116,6 +116,7 @@
 #X obj 480 430 s pc-loop-fade;
 #X obj 600 430 s pc-subdivision;
 #X obj 720 430 s pc-reverb-style;
+#X obj 840 430 s pc-midiclock;
 #X connect 0 0 1 0;
 #X connect 1 0 2 0;
 #X connect 1 1 66 0;
@@ -201,3 +202,4 @@
 #X connect 66 5 114 0;
 #X connect 2 22 115 0;
 #X connect 2 23 116 0;
+#X connect 2 24 117 0;
