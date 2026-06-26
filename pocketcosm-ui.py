@@ -92,7 +92,7 @@ PERFORM_SLIDERS = (
 EDIT_SLIDERS = (
     SliderSpec("grain", "GRAIN", 40, 1000, CYAN, "ms", "log"),
     SliderSpec("bpm", "TEMPO", 40, 200, YELLOW, "bpm"),
-    SliderSpec("pitch", "PITCH", -12, 12, CYAN, "st"),
+    SliderSpec("pitch", "PITCH", -24, 24, CYAN, "st"),
     SliderSpec("pitchmix", "PITCH MIX", 0, 1, (82, 145, 244)),
     SliderSpec("tone", "TONE", 50, 120, CYAN, "midi"),
     SliderSpec("onset", "ONSET", 0, 1, PINK),
@@ -137,6 +137,7 @@ class PocketcosmUI:
         }
         self.state = dict(DEFAULTS)
         self.page = 0
+        self.preset_bank = 0
         self.running = True
         self.drag: tuple[str, pygame.Rect, SliderSpec | None] | None = None
         self.press_target: str | None = None
@@ -460,17 +461,21 @@ class PocketcosmUI:
         self.text(f"RECORD SOURCE  {source}", (624, 374), 14, MUTED, "topright")
 
     def edit_page(self) -> None:
-        self.text("PRESETS", (16, 63), 14, MUTED)
-        for index in range(4):
-            rect = pygame.Rect(90 + index * 70, 56, 58, 44)
-            self.button(
-                rect,
-                str(index + 1),
-                int(self.state["preset_slot"]) == index,
-                GREEN,
-            )
-        self.button(pygame.Rect(390, 56, 104, 44), "LOAD", False, GREEN)
-        self.button(pygame.Rect(506, 56, 118, 44), "SAVE", False, ORANGE)
+        self.text("PRESETS", (16, 52), 12, MUTED)
+        bank = self.preset_bank
+        self.button(
+            pygame.Rect(16, 64, 40, 36),
+            "A/B",
+            False,
+            PURPLE,
+            sublabel="9-16" if bank else "1-8",
+        )
+        for index in range(8):
+            slot = bank * 8 + index
+            rect = pygame.Rect(64 + index * 47, 64, 43, 36)
+            self.button(rect, str(slot + 1), int(self.state["preset_slot"]) == slot, GREEN)
+        self.button(pygame.Rect(440, 64, 88, 36), "LOAD", False, GREEN)
+        self.button(pygame.Rect(534, 64, 90, 36), "SAVE", False, ORANGE)
 
         for index, spec in enumerate(EDIT_SLIDERS):
             col = index % 2
@@ -599,16 +604,19 @@ class PocketcosmUI:
                     self.press_started = now
 
         else:
-            for index in range(4):
-                if pygame.Rect(90 + index * 70, 56, 58, 44).collidepoint(pos):
-                    self.set_value("preset_slot", index)
+            if pygame.Rect(16, 64, 40, 36).collidepoint(pos):
+                self.preset_bank ^= 1
+                return
+            for index in range(8):
+                if pygame.Rect(64 + index * 47, 64, 43, 36).collidepoint(pos):
+                    self.set_value("preset_slot", self.preset_bank * 8 + index)
                     return
-            if pygame.Rect(390, 56, 104, 44).collidepoint(pos):
+            if pygame.Rect(440, 64, 88, 36).collidepoint(pos):
                 self.action("preset_recall")
                 self.notice = f"PRESET {int(self.state['preset_slot']) + 1} LOADED"
                 self.notice_until = time.monotonic() + 1.2
                 return
-            if pygame.Rect(506, 56, 118, 44).collidepoint(pos):
+            if pygame.Rect(534, 64, 90, 36).collidepoint(pos):
                 self.action("preset_save")
                 self.notice = f"PRESET {int(self.state['preset_slot']) + 1} SAVED"
                 self.notice_until = time.monotonic() + 1.2
