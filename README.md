@@ -11,6 +11,10 @@ with a dedicated native Pygame touchscreen interface.
 - ALSA output
 - Optional class-compliant USB audio interface for live input
 
+The touchscreen interface uses a 1970s instrument-panel visual design. The
+required fonts (Paytone One, Saira Semi Condensed, Share Tech Mono) are bundled
+in `fonts/` and loaded relative to the app; no system font install is needed.
+
 ## Installation
 
 Clone the project to `/home/pi/pocketcosm`, then install the included user

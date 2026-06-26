@@ -42,7 +42,11 @@ Re-run `measure-pocketcosm.sh` with the full catalog; confirm worst-case effect
 stays under the dropout threshold and resident RAM well under 1 GB. Tune voice
 counts to the headroom that gating freed.
 
-## Phase 6 — Redesign  🚧 (to be defined)
-Final pass. Scope TBD with the user. Expected to unify the UI that earlier
-phases extended functionally-but-roughly (variant row, 16-preset A/B bank,
-looper control row) into a cohesive, polished interface.
+## Phase 6 — Redesign  ✅
+Reimplemented the Pygame UI to the `design_handoff_pocketcosm` spec: a 1970s
+Cold-War / missile-control instrument panel on the Hologram palette — cream
+bakelite faceplate (bezel + corner screws), backlit annunciator lamp buttons
+with machined collars and halo bloom, a phosphor radar XY scope, amber LED
+readouts, brushed-metal faders, and footer pilot LEDs. All networking/state/
+behavior (UDP set/action/sync) preserved; fonts bundled in `fonts/`. Pure-CSS
+design recreated with pygame drawing primitives (gradients cached for the Pi).
