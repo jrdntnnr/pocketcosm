@@ -62,22 +62,25 @@ Multi Delay and Micro Loop — are absent**. The redesigned UI already has the
 right shape (4 bank tabs × 2–3 sub-mode effects), so most of this is DSP +
 wiring, not layout. ★ = top priority · 🔬 = needs on-device iteration.
 
-## Phase 7 — FX-bus refactor (enabler) 🔬
-Replace the per-effect `pc-cloud/glitch/...` sends + the gating matrix in
-`pt-output` with a single shared `pc-fx-l/r` bus, written only by the active
-(`switch~`-gated, gain-ramped) effect. Removes the N-wide summing matrix so new
-engines cost ~one effect's DSP and ~no extra wiring. Core signal path — verify
-on device. Unblocks 8/9/11.
+## Phase 7 — FX-bus refactor (enabler)  ⏸ deferred
+Original plan: replace the per-effect sends + `pt-output` gating matrix with a
+shared `pc-fx-l/r` bus. Deferred — for adding only two engines, extending the
+existing gating matrix by two (modes 4/5) was lower-risk than rewriting the
+core signal path. Revisit as a cleanup if the catalog grows further.
 
-## Phase 8 — Multi Delay bank  ★ (missing family)
-New tempo-synced multi-tap delay engine. Two effects to fill the bank:
-MULTI-TAP (rhythmic taps) and PING-PONG / DOTTED (stereo, dotted/triplet feel).
-Controls: tap count, spread, feedback. Closes Multi Delay (2 of 11).
+## Phase 8 — Multi Delay bank  ✅ (built, untested on device)
+New tempo-synced stereo multi-tap delay engine (`pt-multidelay.pd`, mode 4):
+four beat-divided taps (ping-pong L/R) with capped feedback and a safety clip.
+Sub-modes DUAL / PING / SWARM (macros). Tabbed in the UI (blue).
 
-## Phase 9 — Micro Loop bank  ★ (missing family)
-New short-buffer looping/repeat engine. Three effects: REPEAT (short forward
-loop), STRETCH (pitch / half-speed repeat), STAB (gated retrigger). Closes
-Micro Loop (3 of 11).
+## Phase 9 — Micro Loop bank  ✅ (built, untested on device)
+New short-buffer stutter/repeat engine (`pt-microloop.pd`, mode 5): a
+40–500 ms window replayed under a raised-cosine envelope (click-free), loop
+length from GRAIN. Sub-modes REPEAT / STAB / STRETCH (macros). Tabbed (green).
+
+> Implemented as a flat 6-engine catalog (modes 0–5) shown as 6 effect tabs,
+> rather than re-banking to the Microcosm's 4-bank taxonomy. Delivers both
+> missing algorithm families as real DSP. Re-banking/labeling can follow.
 
 > Phases 8–9 also re-bank the four tabs to the Microcosm taxonomy
 > (GRANULES · GLITCH · MULTI-DELAY · MICRO-LOOP), fold Arp/Reverse in as

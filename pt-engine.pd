@@ -12,3 +12,5 @@
 #X obj 150 160 pt-midi;
 #X obj 150 195 pt-meter;
 #X obj 280 20 pt-keys-extra;
+#X obj 280 55 pt-multidelay;
+#X obj 280 90 pt-microloop;

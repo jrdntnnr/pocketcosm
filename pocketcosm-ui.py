@@ -50,8 +50,9 @@ PHOSPHOR = (150, 205, 120)
 TRACK_TOP = (214, 199, 164)
 TRACK_BOT = (230, 219, 191)
 
-MODES = ("CLOUD", "GLITCH", "ARP", "REVERSE")
-MODE_COLOR = (TEAL, PURPLE, ORANGE, RED)
+MODES = ("CLOUD", "GLITCH", "ARP", "REVERSE", "MULTI", "MICRO")
+MODE_FULL = ("CLOUD", "GLITCH", "ARP", "REVERSE", "MULTI DELAY", "MICRO LOOP")
+MODE_COLOR = (TEAL, PURPLE, ORANGE, RED, BLUE, GREEN)
 
 # Per-engine variants (sub-modes). Selecting a variant applies a parameter
 # macro for that engine. Names match the design handoff.
@@ -60,6 +61,8 @@ VARIANT_NAMES = (
     ("STUTTER", "SCATTER", "CHOP"),
     ("UP", "DOWN", "RANDOM"),
     ("TAPE", "SWELL", "WARP"),
+    ("DUAL", "PING", "SWARM"),
+    ("REPEAT", "STAB", "STRETCH"),
 )
 VARIANTS = (
     (
@@ -82,6 +85,16 @@ VARIANTS = (
         {"grain": 700, "delay": 1200, "texture": 0.70, "feedback": 0.80, "space": 0.60, "tone": 96},
         {"grain": 400, "delay": 800, "texture": 0.50, "feedback": 0.75, "space": 0.50, "tone": 104, "pitch": -12, "pitchmix": 0.4},
     ),
+    (  # MULTI DELAY
+        {"bpm": 120, "feedback": 0.45, "space": 0.30, "mix": 0.60, "tone": 105},
+        {"bpm": 120, "feedback": 0.65, "space": 0.45, "mix": 0.70, "tone": 100},
+        {"bpm": 140, "feedback": 0.80, "space": 0.60, "mix": 0.80, "tone": 96},
+    ),
+    (  # MICRO LOOP
+        {"grain": 160, "feedback": 0.40, "space": 0.30, "mix": 0.70, "tone": 105},
+        {"grain": 70, "feedback": 0.30, "space": 0.20, "mix": 0.75, "tone": 110},
+        {"grain": 400, "feedback": 0.50, "space": 0.50, "mix": 0.70, "tone": 96},
+    ),
 )
 
 # XY pad mapping per engine: (param_key, low, high, label, curve)
@@ -90,6 +103,8 @@ XY_SPECS = (
     (("grain", 40, 350, "SLICE →", "log"), ("density", 0, 1, "DENSITY", "lin")),
     (("bpm", 40, 200, "RATE →", "lin"), ("density", 0, 1, "RANGE", "lin")),
     (("grain", 120, 1000, "SPEED →", "log"), ("delay", 20, 1000, "DEPTH", "log")),
+    (("bpm", 40, 200, "RATE →", "lin"), ("feedback", 0, 0.97, "REPEATS", "lin")),
+    (("grain", 40, 500, "SIZE →", "log"), ("feedback", 0, 0.97, "REPEATS", "lin")),
 )
 
 # Fader specs: (key, label, low, high, color, unit, curve)
@@ -164,7 +179,7 @@ class PocketcosmUI:
         self.state = dict(DEFAULTS)
         self.page = 0
         self.preset_bank = 0
-        self.sub = [1, 0, 0, 0]  # remembered variant per engine
+        self.sub = [1, 0, 0, 0, 0, 0]  # remembered variant per engine
         self.running = True
         self.drag = None
         self.press_target = None
@@ -469,8 +484,8 @@ class PocketcosmUI:
         pygame.draw.rect(self.screen, (61, 110, 158), (lx - 3, ly - 4, 6, 4), border_radius=2)
         self.text("POCKETCOSM", (66, 28), "display", 18, (42, 34, 24), "midleft", (255, 255, 255))
         # right cluster (laid out right-to-left, non-overlapping)
-        mode = int(self.state["mode"]) % 4
-        self.text(MODES[mode], (410, 18), "display", 13, MODE_COLOR[mode], "midright")
+        mode = int(self.state["mode"]) % 6
+        self.text(MODE_FULL[mode], (410, 18), "display", 13, MODE_COLOR[mode], "midright")
         self.led(f"{round(self.state['bpm'])} BPM", (410, 39), 11, "midright")
         # meters
         self.meter(pygame.Rect(440, 17, 58, 8), self.state["inmeter"], (124, 192, 120), (79, 135, 72))
@@ -520,9 +535,9 @@ class PocketcosmUI:
     # ============ LAYOUTS ====================================================
     def perform_layout(self):
         L = {}
-        gap = 13
-        bw = (604 - gap * 3) // 4
-        L["tabs"] = [pygame.Rect(18 + i * (bw + gap), 69, bw, 38) for i in range(4)]
+        gap = 8
+        bw = (604 - gap * 5) // 6
+        L["tabs"] = [pygame.Rect(18 + i * (bw + gap), 69, bw, 38) for i in range(6)]
         sw = (604 - 13 * 2) // 3
         L["subs"] = [pygame.Rect(18 + i * (sw + 13), 119, sw, 28) for i in range(3)]
         L["pad"] = pygame.Rect(18, 159, 326, 196)
@@ -564,10 +579,10 @@ class PocketcosmUI:
     # ============ PAGES ======================================================
     def perform_page(self):
         L = self.perform_layout()
-        mode = int(self.state["mode"]) % 4
+        mode = int(self.state["mode"]) % 6
         color = MODE_COLOR[mode]
         for i, r in enumerate(L["tabs"]):
-            self.lamp(r, MODE_COLOR[i], "on" if mode == i else "off", MODES[i], 15)
+            self.lamp(r, MODE_COLOR[i], "on" if mode == i else "off", MODES[i], 13)
         for i, r in enumerate(L["subs"]):
             on = self.sub[mode] == i
             self.lamp(r, color, "on" if on else "off", VARIANT_NAMES[mode][i], 12, radius=5)
@@ -689,7 +704,7 @@ class PocketcosmUI:
     def update_xy(self, pos):
         L = self.perform_layout()
         pad = L["pad"]
-        mode = int(self.state["mode"]) % 4
+        mode = int(self.state["mode"]) % 6
         xs, ys = XY_SPECS[mode]
         xa = max(0.0, min(1.0, (pos[0] - pad.x) / pad.width))
         ya = max(0.0, min(1.0, 1 - (pos[1] - pad.y) / pad.height))
@@ -710,7 +725,7 @@ class PocketcosmUI:
 
         if self.page == 0:
             L = self.perform_layout()
-            mode = int(self.state["mode"]) % 4
+            mode = int(self.state["mode"]) % 6
             for i, r in enumerate(L["tabs"]):
                 if r.collidepoint(pos):
                     self.set_value("mode", i)
