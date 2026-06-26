@@ -22,7 +22,7 @@ pdsend_bin="${PDSEND_BIN:-/usr/bin/pdsend}"
 out_dev="${POCKETCOSM_OUTPUT_DEVICE:-1}"
 seconds_per_mode="${SECONDS_PER_MODE:-6}"
 log="$(mktemp -t pocketcosm-measure.XXXXXX.log)"
-names=(CLOUD GLITCH ARP REVERSE)
+names=(CLOUD GLITCH ARP REVERSE MULTI MICRO)
 
 command -v "$pd_bin" >/dev/null || { echo "pd not found at $pd_bin" >&2; exit 1; }
 command -v "$pdsend_bin" >/dev/null || { echo "pdsend not found at $pdsend_bin" >&2; exit 1; }
@@ -54,7 +54,7 @@ sample_cpu() {
 }
 
 printf '\n%-10s %-12s\n' "MODE" "CPU% (avg)"
-for m in 0 1 2 3; do
+for m in 0 1 2 3 4 5; do
   printf 'set mode %s;\n' "$m" | "$pdsend_bin" 9001 localhost udp >/dev/null 2>&1
   sleep 1
   cpu=$(sample_cpu "$seconds_per_mode")
