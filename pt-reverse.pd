@@ -28,8 +28,8 @@
 #X obj 130 440 vd~ pc-memory;
 #X obj 20 470 *~;
 #X obj 130 470 *~;
-#X obj 20 500 s~ pc-fx-l;
-#X obj 130 500 s~ pc-fx-r;
+#X obj 20 500 throw~ pc-fx-l;
+#X obj 130 500 throw~ pc-fx-r;
 #X obj 400 200 pt-modeswitch 3;
 #X obj 400 240 switch~;
 #X obj 650 300 pack f 40;

@@ -16,8 +16,8 @@
 #X obj 460 350 +~ 0.5;
 #X obj 320 390 *~;
 #X obj 320 430 hip~ 30;
-#X obj 320 470 s~ pc-fx-l;
-#X obj 460 470 s~ pc-fx-r;
+#X obj 320 470 throw~ pc-fx-l;
+#X obj 460 470 throw~ pc-fx-r;
 #X obj 600 430 switch~;
 #X obj 600 390 pt-modeswitch 5;
 #X obj 650 300 pack f 40;
