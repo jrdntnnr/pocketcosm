@@ -128,10 +128,11 @@ EDIT_SLIDERS = (
 
 # Tempo subdivisions for synced engines (label, beat fraction).
 SUBDIVISIONS = (("1/4", 1.0), ("1/8", 0.5), ("1/8T", 1.0 / 3.0), ("1/16", 0.25), ("1/8D", 0.75))
+REVERB_STYLES = (("ROOM", 0), ("HALL", 1), ("PLATE", 2), ("SPACE", 3))
 
 
 DEFAULTS = {
-    "demo": 1.0, "freeze": 0.0, "bypass": 0.0, "mode": 0.0, "subdivision": 0.5,
+    "demo": 1.0, "freeze": 0.0, "bypass": 0.0, "mode": 0.0, "subdivision": 0.5, "reverb_style": 0.0,
     "grain": 220.0, "delay": 480.0, "bpm": 100.0, "pitch": 0.0, "pitchmix": 0.0,
     "texture": 0.55, "density": 0.5, "onset": 0.5, "tone": 100.0,
     "feedback": 0.72, "space": 0.35, "mix": 0.75,
@@ -185,6 +186,7 @@ class PocketcosmUI:
         self.preset_bank = 0
         self.sub = [1, 0, 0, 0, 0, 0]  # remembered variant per engine
         self.subdiv = 1  # tempo subdivision index
+        self.revstyle = 0  # reverb style index
         self.running = True
         self.drag = None
         self.press_target = None
@@ -580,6 +582,7 @@ class PocketcosmUI:
             L["params"].append(pygame.Rect(18 + col * (colw + 18), 145 + row * 59, colw, 46))
         L["demo"] = pygame.Rect(18, 381, 150, 36)
         L["subdiv"] = pygame.Rect(196, 381, 104, 36)
+        L["revstyle"] = pygame.Rect(308, 381, 104, 36)
         return L
 
     # ============ PAGES ======================================================
@@ -684,7 +687,8 @@ class PocketcosmUI:
             self.fader(r, c, self.state[k], lo, hi, label, unit, curve)
         self.lamp(L["demo"], GREEN, "on" if self.state["demo"] >= 0.5 else "off", "DEMO INPUT", 14, radius=8)
         self.lamp(L["subdiv"], GOLD, "on", SUBDIVISIONS[self.subdiv][0], 15, radius=8, sublabel="SYNC")
-        self.text("USB INPUT AUTO-SELECTED AT START", (622, 399), "body", 11, MUTED, "midright")
+        self.lamp(L["revstyle"], PURPLE, "on", REVERB_STYLES[self.revstyle][0], 14, radius=8, sublabel="VERB")
+        self.text("USB IN = AUTO", (622, 399), "body", 11, MUTED, "midright")
 
     def draw(self):
         self.screen.blit(self.faceplate, (0, 0))
@@ -808,6 +812,9 @@ class PocketcosmUI:
                 self.subdiv = (self.subdiv + 1) % len(SUBDIVISIONS)
                 self.set_value("subdivision", SUBDIVISIONS[self.subdiv][1])
                 self.set_value("bpm", self.state["bpm"])  # re-send to apply now
+            elif L["revstyle"].collidepoint(pos):
+                self.revstyle = (self.revstyle + 1) % len(REVERB_STYLES)
+                self.set_value("reverb_style", REVERB_STYLES[self.revstyle][1])
 
     def pointer_move(self, pos):
         if not self.drag:
