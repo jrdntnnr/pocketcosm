@@ -126,8 +126,12 @@ EDIT_SLIDERS = (
 )
 
 
+# Tempo subdivisions for synced engines (label, beat fraction).
+SUBDIVISIONS = (("1/4", 1.0), ("1/8", 0.5), ("1/8T", 1.0 / 3.0), ("1/16", 0.25), ("1/8D", 0.75))
+
+
 DEFAULTS = {
-    "demo": 1.0, "freeze": 0.0, "bypass": 0.0, "mode": 0.0,
+    "demo": 1.0, "freeze": 0.0, "bypass": 0.0, "mode": 0.0, "subdivision": 0.5,
     "grain": 220.0, "delay": 480.0, "bpm": 100.0, "pitch": 0.0, "pitchmix": 0.0,
     "texture": 0.55, "density": 0.5, "onset": 0.5, "tone": 100.0,
     "feedback": 0.72, "space": 0.35, "mix": 0.75,
@@ -180,6 +184,7 @@ class PocketcosmUI:
         self.page = 0
         self.preset_bank = 0
         self.sub = [1, 0, 0, 0, 0, 0]  # remembered variant per engine
+        self.subdiv = 1  # tempo subdivision index
         self.running = True
         self.drag = None
         self.press_target = None
@@ -574,6 +579,7 @@ class PocketcosmUI:
             col, row = i % 2, i // 2
             L["params"].append(pygame.Rect(18 + col * (colw + 18), 145 + row * 59, colw, 46))
         L["demo"] = pygame.Rect(18, 381, 150, 36)
+        L["subdiv"] = pygame.Rect(196, 381, 104, 36)
         return L
 
     # ============ PAGES ======================================================
@@ -677,7 +683,8 @@ class PocketcosmUI:
         for r, (k, label, lo, hi, c, unit, curve) in zip(L["params"], EDIT_SLIDERS):
             self.fader(r, c, self.state[k], lo, hi, label, unit, curve)
         self.lamp(L["demo"], GREEN, "on" if self.state["demo"] >= 0.5 else "off", "DEMO INPUT", 14, radius=8)
-        self.text("USB INPUT IS SELECTED AUTOMATICALLY AT START", (622, 399), "body", 11, MUTED, "midright")
+        self.lamp(L["subdiv"], GOLD, "on", SUBDIVISIONS[self.subdiv][0], 15, radius=8, sublabel="SYNC")
+        self.text("USB INPUT AUTO-SELECTED AT START", (622, 399), "body", 11, MUTED, "midright")
 
     def draw(self):
         self.screen.blit(self.faceplate, (0, 0))
@@ -797,6 +804,10 @@ class PocketcosmUI:
                     return
             if L["demo"].collidepoint(pos):
                 self.toggle("demo")
+            elif L["subdiv"].collidepoint(pos):
+                self.subdiv = (self.subdiv + 1) % len(SUBDIVISIONS)
+                self.set_value("subdivision", SUBDIVISIONS[self.subdiv][1])
+                self.set_value("bpm", self.state["bpm"])  # re-send to apply now
 
     def pointer_move(self, pos):
         if not self.drag:

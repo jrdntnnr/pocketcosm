@@ -4,7 +4,7 @@
 #X obj 20 80 metro 250;
 #X obj 130 20 r pc-bpm;
 #X obj 130 50 max 30;
-#X obj 130 80 expr 30000/$f1;
+#X obj 130 80 expr (60000/$f1)*$f2;
 #X obj 20 115 f 0;
 #X obj 70 115 + 1;
 #X obj 20 145 mod 4;
@@ -54,6 +54,7 @@
 #X obj 650 330 line~;
 #X obj 650 360 *~;
 #X obj 740 360 *~;
+#X obj 800 80 r pc-subdivision;
 #X connect 0 0 1 0;
 #X connect 1 0 2 0;
 #X connect 2 0 6 0;
@@ -117,3 +118,4 @@
 #X connect 30 0 54 0;
 #X connect 52 0 54 1;
 #X connect 54 0 32 0;
+#X connect 55 0 5 1;

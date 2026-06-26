@@ -2,7 +2,7 @@
 #X obj 20 20 r~ pc-dry;
 #X obj 300 20 r pc-bpm;
 #X obj 300 50 max 30;
-#X obj 300 80 expr 60000/$f1;
+#X obj 300 80 expr (60000/$f1)*$f2;
 #X obj 300 110 sig~;
 #X obj 300 150 *~ 0.25;
 #X obj 380 150 *~ 0.5;
@@ -38,6 +38,7 @@
 #X obj 650 330 line~;
 #X obj 650 360 *~;
 #X obj 740 360 *~;
+#X obj 800 80 r pc-subdivision;
 #X connect 1 0 2 0;
 #X connect 2 0 3 0;
 #X connect 3 0 4 0;
@@ -80,3 +81,4 @@
 #X connect 20 0 38 0;
 #X connect 36 0 38 1;
 #X connect 38 0 22 0;
+#X connect 39 0 3 1;

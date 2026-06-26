@@ -90,10 +90,11 @@ length from GRAIN. Sub-modes REPEAT / STAB / STRETCH (macros). Tabbed (green).
 > sub-modes or extras, and upgrade the placeholder macro-variants into the
 > real per-bank sub-mode effects.
 
-## Phase 10 — Tempo subdivisions / quantization  ★
-Time-division selector (1/4, 1/8, 1/8T, 1/16, dotted) for every synced effect
-(Glitch, Arp, Multi Delay, Micro Loop). UI control + MIDI. Cheap, high musical
-payoff; a real interaction gap today.
+## Phase 10 — Tempo subdivisions / quantization  ★ ✅ (built, untested on device)
+`pc-subdivision` (beat fraction) multiplies the beat in the synced engines
+(Glitch, Arp, Multi Delay). UI SYNC button on EDIT cycles 1/4 · 1/8 · 1/8T ·
+1/16 · 1/8D and re-sends BPM so the change applies immediately. (Micro Loop
+length stays GRAIN-driven, not beat-synced.)
 
 ## Phase 11 — Granular density / voice count  🔬
 Raise grain-voice counts in Granules/Reverse for dense clouds, tuned to the CPU
