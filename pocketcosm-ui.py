@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""Native 640x480 performance interface for the Pocketcosm Pd engine."""
+"""Native 640x480 performance interface for the Pocketcosm Pd engine.
+
+Visual design: 1970s Cold-War / missile-control instrument panel on the
+Hologram Electronics palette (cream bakelite faceplate, backlit annunciator
+lamp buttons, phosphor radar scope, amber LED readouts). See
+design_handoff_pocketcosm for the full spec. The networking/state protocol to
+the Pd engine (UDP set/action/sync) is unchanged.
+"""
 
 from __future__ import annotations
 
 import math
 import os
 import socket
-import sys
 import time
-from dataclasses import dataclass
 
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 os.environ.setdefault("SDL_MOUSE_TOUCH_EVENTS", "0")
@@ -21,135 +26,154 @@ import pygame
 WIDTH, HEIGHT = 640, 480
 PD_HOST, PD_PORT = "127.0.0.1", 9001
 UI_PORT = 9002
+FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
 
-BG = (12, 14, 18)
-PANEL = (25, 29, 36)
-PANEL_2 = (34, 39, 48)
-LINE = (65, 73, 86)
-TEXT = (235, 239, 244)
-MUTED = (145, 154, 169)
-CYAN = (74, 205, 224)
-GREEN = (79, 219, 145)
-RED = (245, 82, 96)
-ORANGE = (244, 157, 65)
-YELLOW = (245, 205, 79)
-PURPLE = (157, 125, 232)
-PINK = (238, 103, 167)
+# ----- Palette (vivid, per design tokens) -------------------------------------
+RED = (232, 76, 43)
+ORANGE = (245, 154, 46)
+GOLD = (242, 199, 62)
+GREEN = (95, 184, 90)
+TEAL = (43, 179, 164)
+BLUE = (62, 134, 200)
+PURPLE = (140, 99, 192)
+
+INK = (42, 37, 32)
+FACE = (241, 230, 198)
+HEADER_TOP = (243, 231, 194)
+HEADER_BOT = (236, 221, 180)
+BAR_BORDER = (207, 186, 138)
+LED_AMBER = (242, 176, 67)
+LED_BG = (34, 26, 17)
+MUTED = (138, 124, 90)
+SECONDARY = (94, 82, 56)
+PHOSPHOR = (150, 205, 120)
+TRACK_TOP = (214, 199, 164)
+TRACK_BOT = (230, 219, 191)
 
 MODES = ("CLOUD", "GLITCH", "ARP", "REVERSE")
+MODE_COLOR = (TEAL, PURPLE, ORANGE, RED)
+
+# Per-engine variants (sub-modes). Selecting a variant applies a parameter
+# macro for that engine. Names match the design handoff.
+VARIANT_NAMES = (
+    ("DRIFT", "SHIMMER", "DENSE"),
+    ("STUTTER", "SCATTER", "CHOP"),
+    ("UP", "DOWN", "RANDOM"),
+    ("TAPE", "SWELL", "WARP"),
+)
+VARIANTS = (
+    (
+        {"grain": 320, "texture": 0.70, "density": 0.40, "feedback": 0.70, "space": 0.45, "tone": 100, "pitch": 0, "pitchmix": 0.0},
+        {"grain": 120, "texture": 0.55, "density": 0.75, "feedback": 0.80, "space": 0.60, "tone": 112, "pitch": 12, "pitchmix": 0.4},
+        {"grain": 600, "texture": 0.85, "density": 0.95, "feedback": 0.85, "space": 0.50, "tone": 96, "pitch": 0, "pitchmix": 0.0},
+    ),
+    (
+        {"grain": 90, "density": 0.60, "bpm": 120, "texture": 0.40, "feedback": 0.60, "space": 0.30, "tone": 105},
+        {"grain": 60, "density": 0.85, "bpm": 140, "texture": 0.80, "feedback": 0.70, "space": 0.45, "tone": 100},
+        {"grain": 200, "density": 0.40, "bpm": 100, "texture": 0.50, "feedback": 0.50, "space": 0.35, "tone": 92},
+    ),
+    (
+        {"grain": 180, "bpm": 120, "density": 0.60, "tone": 105, "pitch": 0, "feedback": 0.60, "space": 0.50},
+        {"grain": 150, "bpm": 128, "density": 0.70, "tone": 110, "pitch": -12, "feedback": 0.65, "space": 0.55},
+        {"grain": 240, "bpm": 96, "density": 0.55, "tone": 100, "pitch": 0, "feedback": 0.70, "space": 0.60},
+    ),
+    (
+        {"grain": 300, "delay": 600, "texture": 0.60, "feedback": 0.70, "space": 0.55, "tone": 100},
+        {"grain": 700, "delay": 1200, "texture": 0.70, "feedback": 0.80, "space": 0.60, "tone": 96},
+        {"grain": 400, "delay": 800, "texture": 0.50, "feedback": 0.75, "space": 0.50, "tone": 104, "pitch": -12, "pitchmix": 0.4},
+    ),
+)
+
+# XY pad mapping per engine: (param_key, low, high, label, curve)
+XY_SPECS = (
+    (("texture", 0, 1, "TEXTURE →", "lin"), ("density", 0, 1, "DENSITY", "lin")),
+    (("grain", 40, 350, "SLICE →", "log"), ("density", 0, 1, "DENSITY", "lin")),
+    (("bpm", 40, 200, "RATE →", "lin"), ("density", 0, 1, "RANGE", "lin")),
+    (("grain", 120, 1000, "SPEED →", "log"), ("delay", 20, 1000, "DEPTH", "log")),
+)
+
+# Fader specs: (key, label, low, high, color, unit, curve)
+PERFORM_SLIDERS = (
+    ("delay", "MEMORY", 20, 1000, BLUE, "ms", "log"),
+    ("feedback", "FEEDBACK", 0, 0.97, ORANGE, "%", "lin"),
+    ("space", "SPACE", 0, 1, PURPLE, "%", "lin"),
+    ("mix", "DRY / WET", 0, 1, GREEN, "%", "lin"),
+)
+EDIT_SLIDERS = (
+    ("grain", "GRAIN", 40, 1000, TEAL, "ms", "log"),
+    ("bpm", "TEMPO", 40, 200, GOLD, "bpm", "lin"),
+    ("pitch", "PITCH", -24, 24, BLUE, "st", "lin"),
+    ("pitchmix", "PITCH MIX", 0, 1, BLUE, "%", "lin"),
+    ("tone", "TONE", 50, 120, GREEN, "midi", "lin"),
+    ("onset", "ONSET", 0, 1, RED, "%", "lin"),
+    ("texture", "TEXTURE", 0, 1, ORANGE, "%", "lin"),
+    ("density", "DENSITY", 0, 1, PURPLE, "%", "lin"),
+)
 
 
 DEFAULTS = {
-    "demo": 1.0,
-    "freeze": 0.0,
-    "bypass": 0.0,
-    "mode": 0.0,
-    "grain": 220.0,
-    "delay": 480.0,
-    "bpm": 100.0,
-    "pitch": 0.0,
-    "pitchmix": 0.0,
-    "texture": 0.55,
-    "density": 0.5,
-    "onset": 0.5,
-    "tone": 100.0,
-    "feedback": 0.72,
-    "space": 0.35,
-    "mix": 0.75,
-    "loop_record": 0.0,
-    "loop_play": 0.0,
-    "loop_reverse": 0.0,
-    "loop_route": 0.0,
-    "loop_ms": 1000.0,
-    "loop_phase": 0.0,
-    "undo_valid": 0.0,
-    "overdub_active": 0.0,
-    "preset_slot": 0.0,
-    "inmeter": -100.0,
-    "outmeter": -100.0,
-    "clip": 0.0,
+    "demo": 1.0, "freeze": 0.0, "bypass": 0.0, "mode": 0.0,
+    "grain": 220.0, "delay": 480.0, "bpm": 100.0, "pitch": 0.0, "pitchmix": 0.0,
+    "texture": 0.55, "density": 0.5, "onset": 0.5, "tone": 100.0,
+    "feedback": 0.72, "space": 0.35, "mix": 0.75,
+    "loop_record": 0.0, "loop_play": 0.0, "loop_reverse": 0.0, "loop_route": 0.0,
+    "loop_halfspeed": 0.0, "loop_ms": 1000.0, "loop_phase": 0.0,
+    "undo_valid": 0.0, "overdub_active": 0.0, "preset_slot": 0.0,
+    "inmeter": -100.0, "outmeter": -100.0, "clip": 0.0,
 }
 
 
-@dataclass(frozen=True)
-class SliderSpec:
-    key: str
-    label: str
-    low: float
-    high: float
-    color: tuple[int, int, int]
-    unit: str = "%"
-    curve: str = "linear"
+def shade(c, amt):
+    """Blend color c toward white (amt>0) or black (amt<0) by |amt|."""
+    f = 255 if amt > 0 else 0
+    p = abs(amt)
+    return tuple(round(ch + (f - ch) * p) for ch in c)
 
 
-PERFORM_SLIDERS = (
-    SliderSpec("delay", "MEMORY", 20, 6000, PURPLE, "ms", "log"),
-    SliderSpec("feedback", "FEEDBACK", 0, 0.97, ORANGE),
-    SliderSpec("space", "SPACE", 0, 1, PURPLE),
-    SliderSpec("mix", "DRY / WET", 0, 1, GREEN),
-)
-
-EDIT_SLIDERS = (
-    SliderSpec("grain", "GRAIN", 40, 1000, CYAN, "ms", "log"),
-    SliderSpec("bpm", "TEMPO", 40, 200, YELLOW, "bpm"),
-    SliderSpec("pitch", "PITCH", -12, 12, CYAN, "st"),
-    SliderSpec("pitchmix", "PITCH MIX", 0, 1, (82, 145, 244)),
-    SliderSpec("tone", "TONE", 50, 120, CYAN, "midi"),
-    SliderSpec("onset", "ONSET", 0, 1, PINK),
-    SliderSpec("texture", "TEXTURE", 0, 1, PINK),
-    SliderSpec("density", "DENSITY", 0, 1, PINK),
-)
+def _interp(stops, t):
+    t = max(0.0, min(1.0, t))
+    for i in range(len(stops) - 1):
+        p0, c0 = stops[i]
+        p1, c1 = stops[i + 1]
+        if t <= p1:
+            span = (p1 - p0) or 1e-9
+            k = (t - p0) / span
+            return tuple(round(c0[j] + (c1[j] - c0[j]) * k) for j in range(3))
+    return stops[-1][1]
 
 
 class PocketcosmUI:
     def __init__(self) -> None:
         pygame.init()
-        pygame.event.set_allowed(
-            [
-                pygame.QUIT,
-                pygame.KEYDOWN,
-                pygame.MOUSEBUTTONDOWN,
-                pygame.MOUSEBUTTONUP,
-                pygame.MOUSEMOTION,
-            ]
-        )
+        pygame.event.set_allowed([
+            pygame.QUIT, pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN,
+            pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION,
+        ])
         flags = pygame.FULLSCREEN | pygame.NOFRAME
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
         pygame.display.set_caption("Pocketcosm")
-        print(
-            f"Pocketcosm UI: SDL driver={pygame.display.get_driver()} "
-            f"size={self.screen.get_size()}",
-            flush=True,
-        )
+        print(f"Pocketcosm UI: SDL driver={pygame.display.get_driver()} "
+              f"size={self.screen.get_size()}", flush=True)
         pygame.mouse.set_visible(False)
         self.clock = pygame.time.Clock()
-        self.font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-        self.bold_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-        self.mono_path = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
-        self.fonts = {
-            12: pygame.font.Font(self.font_path, 12),
-            14: pygame.font.Font(self.font_path, 14),
-            16: pygame.font.Font(self.font_path, 16),
-            18: pygame.font.Font(self.bold_path, 18),
-            22: pygame.font.Font(self.bold_path, 22),
-            28: pygame.font.Font(self.bold_path, 28),
-            38: pygame.font.Font(self.bold_path, 38),
-        }
+
+        self._fonts: dict = {}
+        self._grad: dict = {}
+        self._lens: dict = {}
+
         self.state = dict(DEFAULTS)
         self.page = 0
+        self.preset_bank = 0
+        self.sub = [1, 0, 0, 0]  # remembered variant per engine
         self.running = True
-        self.drag: tuple[str, pygame.Rect, SliderSpec | None] | None = None
-        self.press_target: str | None = None
+        self.drag = None
+        self.press_target = None
         self.press_started = 0.0
         self.clear_progress = 0.0
         self.last_rx = 0.0
         self.last_sync = 0.0
-        self.hit_until = 0.0
-        self.notice = ""
-        self.notice_until = 0.0
+        self.flash_until = {}
         self.tap_times: list[float] = []
-        self.loop_epoch = time.monotonic()
-        self.record_epoch = time.monotonic()
         self.previous = dict(self.state)
 
         self.tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -158,59 +182,135 @@ class PocketcosmUI:
         self.rx.bind(("127.0.0.1", UI_PORT))
         self.rx.setblocking(False)
 
-    def text(
-        self,
-        value: str,
-        pos: tuple[int, int],
-        size: int = 14,
-        color: tuple[int, int, int] = TEXT,
-        anchor: str = "topleft",
-    ) -> pygame.Rect:
-        surface = self.fonts[size].render(value, True, color)
-        rect = surface.get_rect()
-        setattr(rect, anchor, pos)
-        self.screen.blit(surface, rect)
+        self.faceplate = self._build_faceplate()
+        self.overlay = self._build_overlay()
+
+    # ----- fonts --------------------------------------------------------------
+    def f(self, kind: str, size: int) -> pygame.font.Font:
+        key = (kind, size)
+        font = self._fonts.get(key)
+        if font is None:
+            names = {
+                "display": "PaytoneOne-Regular.ttf",
+                "body": "SairaSemiCondensed-SemiBold.ttf",
+                "bold": "SairaSemiCondensed-Bold.ttf",
+                "mono": "ShareTechMono-Regular.ttf",
+            }
+            try:
+                font = pygame.font.Font(os.path.join(FONT_DIR, names[kind]), size)
+            except Exception:
+                font = pygame.font.Font(None, size)
+            self._fonts[key] = font
+        return font
+
+    def text(self, value, pos, kind, size, color, anchor="topleft", shadow=None):
+        if shadow:
+            s = self.f(kind, size).render(value, True, shadow)
+            r = s.get_rect(); setattr(r, anchor, (pos[0], pos[1] + 1))
+            self.screen.blit(s, r)
+        surf = self.f(kind, size).render(value, True, color)
+        rect = surf.get_rect(); setattr(rect, anchor, pos)
+        self.screen.blit(surf, rect)
         return rect
 
-    @staticmethod
-    def rounded(
-        surface: pygame.Surface,
-        rect: pygame.Rect,
-        color: tuple[int, int, int],
-        radius: int = 9,
-        width: int = 0,
-    ) -> None:
-        pygame.draw.rect(surface, color, rect, width, border_radius=radius)
+    # ----- gradient + surface caches -----------------------------------------
+    def vgrad(self, w, h, stops):
+        key = (w, h, tuple(stops))
+        surf = self._grad.get(key)
+        if surf is None:
+            surf = pygame.Surface((w, h))
+            for y in range(h):
+                t = y / (h - 1) if h > 1 else 0.0
+                pygame.draw.line(surf, _interp(stops, t), (0, y), (w, y))
+            self._grad[key] = surf
+        return surf
 
-    def send(self, message: str) -> None:
+    def hgrad(self, w, h, stops):
+        key = ("h", w, h, tuple(stops))
+        surf = self._grad.get(key)
+        if surf is None:
+            surf = pygame.Surface((w, h))
+            for x in range(w):
+                t = x / (w - 1) if w > 1 else 0.0
+                pygame.draw.line(surf, _interp(stops, t), (x, 0), (x, h))
+            self._grad[key] = surf
+        return surf
+
+    def rounded_grad(self, w, h, stops, radius):
+        """A rounded-rect-masked vertical gradient surface (cached)."""
+        key = ("rg", w, h, tuple(stops), radius)
+        surf = self._lens.get(key)
+        if surf is None:
+            base = self.vgrad(w, h, stops).convert_alpha()
+            mask = pygame.Surface((w, h), pygame.SRCALPHA)
+            pygame.draw.rect(mask, (255, 255, 255, 255), (0, 0, w, h), border_radius=radius)
+            base.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+            surf = base
+            self._lens[key] = surf
+        return surf
+
+    # ----- static layers ------------------------------------------------------
+    def _build_faceplate(self):
+        surf = pygame.Surface((WIDTH, HEIGHT))
+        surf.fill(FACE)
+        scan = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        for y in range(0, HEIGHT, 4):
+            pygame.draw.rect(scan, (120, 95, 55, 9), (0, y, WIDTH, 2))
+        surf.blit(scan, (0, 0))
+        return surf
+
+    def _build_overlay(self):
+        ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        # subtle halftone dots
+        dots = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        for y in range(0, HEIGHT, 5):
+            for x in range(0, WIDTH, 5):
+                dots.set_at((x, y), (0, 0, 0, 8))
+        ov.blit(dots, (0, 0))
+        # bezel rings
+        pygame.draw.rect(ov, (230, 210, 154), (0, 0, WIDTH, HEIGHT), 3, border_radius=2)
+        pygame.draw.rect(ov, (213, 189, 137), (3, 3, WIDTH - 6, HEIGHT - 6), 2, border_radius=2)
+        # corner screws
+        for (cx, cy) in ((15, 15), (WIDTH - 15, 15), (15, HEIGHT - 15), (WIDTH - 15, HEIGHT - 15)):
+            for i, col in enumerate(((142, 124, 84), (183, 161, 118), (240, 230, 207))):
+                pygame.draw.circle(ov, col, (cx, cy), 6 - i * 2)
+            pygame.draw.line(ov, (55, 40, 22), (cx - 4, cy - 4), (cx + 4, cy + 4), 2)
+        return ov
+
+    # ----- networking ---------------------------------------------------------
+    def send(self, message):
         try:
             self.tx.sendto((message + ";\n").encode("ascii"), (PD_HOST, PD_PORT))
         except OSError:
             pass
 
-    def set_value(self, key: str, value: float) -> None:
+    def set_value(self, key, value):
         value = float(value)
         self.state[key] = value
         self.send(f"set {key} {value:.6g}")
-        self.note_transition(key, value)
+        self.previous[key] = value
 
-    def action(self, key: str) -> None:
+    def action(self, key):
         self.send(f"action {key}")
 
-    def toggle(self, key: str) -> None:
+    def toggle(self, key):
         self.set_value(key, 0 if self.state.get(key, 0) >= 0.5 else 1)
 
-    def sync(self) -> None:
+    def flash(self, key):
+        self.flash_until[key] = time.monotonic() + 0.35
+
+    def is_flash(self, key):
+        return time.monotonic() < self.flash_until.get(key, 0.0)
+
+    def sync(self):
         self.send("sync")
         self.last_sync = time.monotonic()
 
-    def receive(self) -> None:
+    def receive(self):
         while True:
             try:
                 packet = self.rx.recv(4096).decode("utf-8", "ignore")
-            except BlockingIOError:
-                break
-            except OSError:
+            except (BlockingIOError, OSError):
                 break
             self.last_rx = time.monotonic()
             for raw in packet.replace("\n", ";").split(";"):
@@ -222,284 +322,350 @@ class PocketcosmUI:
                     value = float(parts[1])
                 except ValueError:
                     continue
-                if key == "hit":
-                    self.hit_until = time.monotonic() + 0.14
-                else:
+                if key != "hit":
                     self.state[key] = value
-                    self.note_transition(key, value)
+                    self.previous[key] = value
 
-    def note_transition(self, key: str, value: float) -> None:
-        old = self.previous.get(key, value)
-        if key == "loop_play" and value >= 0.5 and old < 0.5:
-            self.loop_epoch = time.monotonic()
-        if key == "loop_record" and value >= 0.5 and old < 0.5:
-            self.record_epoch = time.monotonic()
-        self.previous[key] = value
+    def apply_variant(self, mode, variant):
+        self.set_value("mode", mode)
+        for key, value in VARIANTS[mode][variant].items():
+            self.set_value(key, value)
+        self.sub[mode] = variant
+
+    # ----- value helpers ------------------------------------------------------
+    @staticmethod
+    def normalized(low, high, value, curve):
+        value = max(min(low, high), min(max(low, high), value))
+        if curve == "log":
+            return math.log(value / low) / math.log(high / low)
+        return (value - low) / (high - low)
 
     @staticmethod
-    def normalized(spec: SliderSpec, value: float) -> float:
-        value = max(spec.low, min(spec.high, value))
-        if spec.curve == "log":
-            return math.log(value / spec.low) / math.log(spec.high / spec.low)
-        return (value - spec.low) / (spec.high - spec.low)
-
-    @staticmethod
-    def denormalized(spec: SliderSpec, amount: float) -> float:
+    def denormalized(low, high, amount, curve):
         amount = max(0.0, min(1.0, amount))
-        if spec.curve == "log":
-            return spec.low * ((spec.high / spec.low) ** amount)
-        return spec.low + amount * (spec.high - spec.low)
+        if curve == "log":
+            return low * ((high / low) ** amount)
+        return low + amount * (high - low)
 
-    def value_text(self, spec: SliderSpec) -> str:
-        value = self.state[spec.key]
-        if spec.unit == "%":
-            return f"{round(value * 100):d}%"
-        if spec.unit in ("ms", "bpm", "midi"):
-            return f"{round(value):d} {spec.unit}"
-        if spec.unit == "st":
+    def fmt(self, value, low, high, unit, curve):
+        if unit == "%":
+            return f"{round(self.normalized(low, high, value, curve) * 100)}%"
+        if unit in ("ms", "bpm", "midi"):
+            return f"{round(value)} {unit}"
+        if unit == "st":
             return f"{value:+.0f} st"
         return f"{value:.2f}"
 
-    def button(
-        self,
-        rect: pygame.Rect,
-        label: str,
-        active: bool = False,
-        color: tuple[int, int, int] = CYAN,
-        sublabel: str | None = None,
-        disabled: bool = False,
-    ) -> None:
-        fill = color if active and not disabled else PANEL_2
-        border = color if not disabled else LINE
-        self.rounded(self.screen, rect, fill, 10)
-        self.rounded(self.screen, rect, border, 10, 2)
-        label_color = BG if active and not disabled else (MUTED if disabled else TEXT)
-        self.text(label, rect.center, 16, label_color, "center")
-        if sublabel:
-            self.text(sublabel, (rect.centerx, rect.bottom - 8), 12, label_color, "midbottom")
+    # ============ DRAWING PRIMITIVES =========================================
+    def collar(self, rect, radius):
+        pygame.draw.rect(self.screen, (43, 41, 36), rect.inflate(9, 9), border_radius=radius + 4)
+        pygame.draw.rect(self.screen, (135, 127, 106), rect.inflate(6, 6), border_radius=radius + 3)
+        pygame.draw.rect(self.screen, (29, 27, 22), rect.inflate(3, 3), border_radius=radius + 1)
 
-    def slider(self, rect: pygame.Rect, spec: SliderSpec) -> None:
-        value = self.state[spec.key]
-        amount = self.normalized(spec, value)
-        self.rounded(self.screen, rect, PANEL, 9)
-        fill = rect.copy()
-        fill.width = max(8, round(rect.width * amount))
-        self.rounded(self.screen, fill, spec.color, 9)
-        self.text(spec.label, (rect.x + 12, rect.y + 8), 12, TEXT)
-        self.text(self.value_text(spec), (rect.right - 10, rect.y + 7), 14, TEXT, "topright")
+    def glow(self, rect, color, radius, intensity=1.0):
+        for spread, alpha in ((20, 38), (10, 70)):
+            g = pygame.Surface((rect.width + spread * 2, rect.height + spread * 2), pygame.SRCALPHA)
+            pygame.draw.rect(g, (*color, int(alpha * intensity)), g.get_rect(), border_radius=radius + spread)
+            self.screen.blit(g, (rect.x - spread, rect.y - spread))
 
-    def header(self) -> None:
-        pygame.draw.rect(self.screen, PANEL, (0, 0, WIDTH, 50))
-        self.text("POCKETCOSM", (16, 25), 22, TEXT, "midleft")
-        mode = MODES[int(self.state["mode"]) % 4]
-        self.text(mode, (310, 17), 14, CYAN, "midleft")
-        self.text(f'{round(self.state["bpm"]):d} BPM', (310, 34), 12, MUTED, "midleft")
-
-        connected = time.monotonic() - self.last_rx < 2.0
-        pygame.draw.circle(self.screen, GREEN if connected else RED, (405, 25), 5)
-        self.draw_meter(pygame.Rect(425, 12, 76, 11), self.state["inmeter"], GREEN, "IN")
-        self.draw_meter(pygame.Rect(425, 29, 76, 11), self.state["outmeter"], CYAN, "OUT")
-        clip = self.state["clip"] >= 0.5
-        self.text("CLIP", (508, 25), 12, RED if clip else MUTED, "midleft")
-        if time.monotonic() < self.hit_until:
-            pygame.draw.circle(self.screen, PINK, (555, 25), 8)
+    def lamp(self, rect, color, state, label, size, radius=6, sublabel=None, pulse=False):
+        """state: 'on' | 'off' | 'dead'."""
+        w, h = rect.size
+        if state == "on":
+            pf = (0.7 + 0.3 * (0.5 + 0.5 * math.sin(time.monotonic() * 5.7))) if pulse else 1.0
+            self.glow(rect, color, radius, pf)
+        self.collar(rect, radius)
+        if state == "on":
+            stops = [(0.0, shade(color, 0.60)), (0.5, color), (1.0, shade(color, -0.32))]
+            legend = (255, 250, 240)
+            lshadow = None
+        elif state == "dead":
+            stops = [(0.0, (59, 57, 51)), (0.68, (33, 31, 27)), (1.0, (21, 19, 15))]
+            legend = (111, 106, 94)
+            lshadow = (0, 0, 0)
         else:
-            pygame.draw.circle(self.screen, LINE, (555, 25), 6, 2)
+            stops = [(0.0, shade(color, -0.44)), (0.66, shade(color, -0.62)), (1.0, shade(color, -0.78))]
+            legend = shade(color, 0.42)
+            lshadow = (0, 0, 0)
+        self.screen.blit(self.rounded_grad(w, h, stops, radius), rect.topleft)
+        pygame.draw.rect(self.screen, (22, 20, 15), rect, 2, border_radius=radius)
+        cx, cy = rect.center
+        if sublabel:
+            self.text(label, (cx, cy - 6), "bold", size, legend, "center", lshadow)
+            self.text(sublabel, (cx, cy + 9), "mono", 9, legend, "center")
+        else:
+            self.text(label, (cx, cy), "bold", size, legend, "center", lshadow)
 
-        exit_rect = pygame.Rect(578, 6, 50, 38)
-        self.button(exit_rect, "EXIT", False, RED)
+    def fader(self, rect, color, value, low, high, label, unit, curve):
+        w, h = rect.size
+        # track
+        self.screen.blit(self.rounded_grad(w, h, [(0.0, TRACK_TOP), (1.0, TRACK_BOT)], 6), rect.topleft)
+        pygame.draw.rect(self.screen, (43, 41, 36), rect.inflate(3, 3), 2, border_radius=8)
+        pygame.draw.rect(self.screen, (191, 173, 131), rect, 1, border_radius=6)
+        amount = self.normalized(low, high, value, curve)
+        fillw = max(3, round(w * amount))
+        fill_full = self.rounded_grad(w, h, [(0.0, shade(color, 0.30)), (0.58, color), (1.0, shade(color, -0.16))], 5)
+        self.screen.blit(fill_full, rect.topleft, area=pygame.Rect(0, 0, fillw, h))
+        # handle
+        hx = rect.x + fillw
+        hr = pygame.Rect(0, 0, 13, h - 6); hr.center = (hx, rect.centery)
+        self.screen.blit(self.hgrad(13, hr.height, [(0.0, (154, 147, 132)), (0.45, (207, 201, 187)), (1.0, (125, 118, 106))]), hr.topleft)
+        pygame.draw.rect(self.screen, (29, 27, 22), hr, 1, border_radius=2)
+        # label chip + value LED
+        chip = self.f("bold", 12 if h < 44 else 13).render(label, True, INK)
+        cr = chip.get_rect(midleft=(rect.x + 9, rect.centery))
+        bg = cr.inflate(12, 6)
+        s = pygame.Surface(bg.size, pygame.SRCALPHA)
+        pygame.draw.rect(s, (250, 243, 225, 225), s.get_rect(), border_radius=4)
+        self.screen.blit(s, bg.topleft)
+        self.screen.blit(chip, cr)
+        self.led(self.fmt(value, low, high, unit, curve), (rect.right - 8, rect.centery), 13, "midright")
 
-    def draw_meter(
-        self,
-        rect: pygame.Rect,
-        db: float,
-        color: tuple[int, int, int],
-        label: str,
-    ) -> None:
-        self.text(label, (rect.x - 5, rect.centery), 12, MUTED, "midright")
-        self.rounded(self.screen, rect, (8, 10, 13), 4)
-        amount = max(0.0, min(1.0, (db + 60.0) / 60.0))
-        if amount:
-            fill = rect.copy()
-            fill.width = max(3, round(rect.width * amount))
-            self.rounded(self.screen, fill, RED if db > -1 else color, 4)
+    def led(self, value, pos, size, anchor="midright"):
+        surf = self.f("mono", size).render(value, True, LED_AMBER)
+        r = surf.get_rect(); setattr(r, anchor, pos)
+        bg = r.inflate(14, 6)
+        pygame.draw.rect(self.screen, LED_BG, bg, border_radius=3)
+        glow = self.f("mono", size).render(value, True, (120, 88, 33))
+        gr = glow.get_rect(center=r.center)
+        self.screen.blit(glow, gr.move(0, 1))
+        self.screen.blit(surf, r)
+        return bg
 
-    def mode_row(self) -> None:
-        gap = 6
-        width = (608 - gap * 3) // 4
-        for index, label in enumerate(MODES):
-            rect = pygame.Rect(16 + index * (width + gap), 58, width, 42)
-            self.button(rect, label, int(self.state["mode"]) == index, CYAN)
+    def scope(self, rect, color, fx, fy, xlabel, ylabel):
+        self.collar(rect, 8)
+        scr = pygame.Surface(rect.size)
+        scr.blit(self.vgrad(rect.width, rect.height, [(0.0, (45, 55, 39)), (0.8, (22, 27, 18)), (1.0, (16, 20, 13))]), (0, 0))
+        for i in range(1, 4):
+            x = rect.width * i // 4
+            y = rect.height * i // 4
+            pygame.draw.line(scr, (126, 196, 108), (x, 0), (x, rect.height), 1)
+            pygame.draw.line(scr, (126, 196, 108), (0, y), (rect.width, y), 1)
+        self.screen.blit(scr, rect.topleft)
+        pygame.draw.rect(self.screen, (22, 20, 15), rect, 2, border_radius=8)
+        self.text(ylabel, (rect.x + 11, rect.y + 9), "bold", 11, PHOSPHOR)
+        self.text(xlabel, (rect.x + 11, rect.bottom - 9), "bold", 11, PHOSPHOR, "bottomleft")
+        px = rect.x + int(fx * rect.width)
+        py = rect.y + int((1 - fy) * rect.height)
+        gl = pygame.Surface((48, 48), pygame.SRCALPHA)
+        pygame.draw.circle(gl, (*color, 90), (24, 24), 18)
+        pygame.draw.circle(gl, (*color, 60), (24, 24), 24)
+        self.screen.blit(gl, (px - 24, py - 24))
+        for i in range(8, 0, -1):
+            t = i / 8
+            col = _interp([(0.0, shade(color, 0.62)), (0.55, color), (1.0, shade(color, -0.30))], 1 - t)
+            pygame.draw.circle(self.screen, col, (px - int(15 * 0.1), py - int(15 * 0.15)), int(15 * t))
+        pygame.draw.circle(self.screen, (255, 255, 255), (px, py), 15, 2)
 
-    def xy_specs(self) -> tuple[SliderSpec, SliderSpec]:
+    # ============ HEADER / FOOTER ============================================
+    def header(self):
+        pygame.draw.rect(self.screen, HEADER_TOP, (0, 0, WIDTH, 56))
+        self.screen.blit(self.vgrad(WIDTH, 56, [(0.0, HEADER_TOP), (1.0, HEADER_BOT)]), (0, 0))
+        pygame.draw.line(self.screen, BAR_BORDER, (0, 55), (WIDTH, 55), 2)
+        # logo: nested half-rings
+        lx, ly = 40, 40
+        for rad, col, th in ((15, (201, 72, 47), 3), (11, (219, 133, 55), 3), (7, (92, 147, 82), 3)):
+            pygame.draw.arc(self.screen, col, pygame.Rect(lx - rad, ly - rad, rad * 2, rad * 2), 0.05, math.pi - 0.05, th)
+        pygame.draw.rect(self.screen, (61, 110, 158), (lx - 3, ly - 4, 6, 4), border_radius=2)
+        self.text("POCKETCOSM", (66, 28), "display", 18, (42, 34, 24), "midleft", (255, 255, 255))
+        # right cluster (laid out right-to-left, non-overlapping)
         mode = int(self.state["mode"]) % 4
-        if mode == 1:
-            return (
-                SliderSpec("grain", "SLICE", 40, 350, CYAN, "ms", "log"),
-                SliderSpec("density", "DENSITY", 0, 1, PINK),
-            )
-        if mode == 2:
-            return (
-                SliderSpec("tone", "TONE", 50, 120, CYAN, "midi"),
-                SliderSpec("density", "INTENSITY", 0, 1, PINK),
-            )
-        if mode == 3:
-            return (
-                SliderSpec("grain", "FRAGMENT", 120, 1000, CYAN, "ms", "log"),
-                SliderSpec("delay", "MEMORY", 20, 6000, PURPLE, "ms", "log"),
-            )
-        return (
-            SliderSpec("texture", "TEXTURE", 0, 1, PINK),
-            SliderSpec("density", "DENSITY", 0, 1, PINK),
-        )
+        self.text(MODES[mode], (410, 18), "display", 13, MODE_COLOR[mode], "midright")
+        self.led(f"{round(self.state['bpm'])} BPM", (410, 39), 11, "midright")
+        # meters
+        self.meter(pygame.Rect(440, 17, 58, 8), self.state["inmeter"], (124, 192, 120), (79, 135, 72))
+        self.meter(pygame.Rect(440, 31, 58, 8), self.state["outmeter"], (82, 192, 180), (39, 137, 127))
+        self.text("IN", (436, 21), "bold", 9, (125, 111, 79), "midright")
+        self.text("OUT", (436, 35), "bold", 9, (125, 111, 79), "midright")
+        # CLIP
+        clip = self.state["clip"] >= 0.5
+        self.text("CLIP", (528, 28), "bold", 9, (125, 111, 79), "midright")
+        cc = RED if clip else (194, 174, 130)
+        pygame.draw.circle(self.screen, cc, (539, 28), 5)
+        # EXIT lamp (red, unlit guard)
+        ex = pygame.Rect(560, 13, 50, 30)
+        self.exit_rect = ex
+        self.collar(ex, 6)
+        self.screen.blit(self.rounded_grad(ex.width, ex.height,
+            [(0.0, (126, 38, 26)), (0.68, (81, 24, 16)), (1.0, (53, 13, 6))], 6), ex.topleft)
+        pygame.draw.rect(self.screen, (22, 20, 15), ex, 2, border_radius=6)
+        self.text("EXIT", ex.center, "bold", 14, (240, 183, 168), "center", (0, 0, 0))
 
-    def perform_page(self) -> None:
-        self.mode_row()
-        pad = pygame.Rect(16, 110, 378, 226)
-        self.rounded(self.screen, pad, PANEL, 12)
-        self.rounded(self.screen, pad, LINE, 12, 2)
-        for step in range(1, 4):
-            x = pad.x + pad.width * step // 4
-            y = pad.y + pad.height * step // 4
-            pygame.draw.line(self.screen, (42, 48, 58), (x, pad.y + 1), (x, pad.bottom - 1))
-            pygame.draw.line(self.screen, (42, 48, 58), (pad.x + 1, y), (pad.right - 1, y))
-        x_spec, y_spec = self.xy_specs()
-        px = pad.x + int(self.normalized(x_spec, self.state[x_spec.key]) * pad.width)
-        py = pad.bottom - int(self.normalized(y_spec, self.state[y_spec.key]) * pad.height)
-        pygame.draw.line(self.screen, (70, 79, 92), (px, pad.y), (px, pad.bottom))
-        pygame.draw.line(self.screen, (70, 79, 92), (pad.x, py), (pad.right, py))
-        pygame.draw.circle(self.screen, PINK, (px, py), 15)
-        pygame.draw.circle(self.screen, TEXT, (px, py), 15, 2)
-        self.text(f"{x_spec.label}  →", (pad.x + 12, pad.bottom - 10), 12, MUTED, "bottomleft")
-        self.text(y_spec.label, (pad.x + 10, pad.y + 10), 12, MUTED)
+    def meter(self, rect, db, top, bot):
+        pygame.draw.rect(self.screen, (182, 162, 118), rect, border_radius=4)
+        amount = max(0.0, min(1.0, (db + 60.0) / 60.0))
+        if amount > 0:
+            fw = max(2, round(rect.width * amount))
+            self.screen.blit(self.rounded_grad(fw, rect.height, [(0.0, top), (1.0, bot)], 4), rect.topleft)
 
-        for row, spec in enumerate(PERFORM_SLIDERS):
-            self.slider(pygame.Rect(408, 110 + row * 57, 216, 46), spec)
+    def footer(self):
+        y = HEIGHT - 50
+        self.screen.blit(self.vgrad(WIDTH, 50, [(0.0, HEADER_BOT), (1.0, HEADER_TOP)]), (0, y))
+        pygame.draw.line(self.screen, BAR_BORDER, (0, y), (WIDTH, y), 2)
+        labels = ("PERFORM", "LOOP", "EDIT")
+        for i, label in enumerate(labels):
+            cx = WIDTH * (2 * i + 1) // 6
+            active = i == self.page
+            led_x = cx - self.f("display", 16).size(label)[0] // 2 - 14
+            if active:
+                gl = pygame.Surface((22, 22), pygame.SRCALPHA)
+                pygame.draw.circle(gl, (*TEAL, 110), (11, 11), 9)
+                self.screen.blit(gl, (led_x - 11, y + 25 - 11))
+                pygame.draw.circle(self.screen, TEAL, (led_x, y + 25), 4)
+                self.text(label, (cx + 6, y + 25), "display", 16, (42, 37, 32), "center")
+            else:
+                pygame.draw.circle(self.screen, (154, 138, 100), (led_x, y + 25), 4)
+                self.text(label, (cx + 6, y + 25), "display", 16, MUTED, "center")
 
-        actions = (
-            ("freeze", "FREEZE", CYAN),
-            ("loop_record", "CAPTURE", RED),
-            ("bypass", "BYPASS", YELLOW),
-        )
-        for index, (key, label, color) in enumerate(actions):
-            rect = pygame.Rect(16 + index * 204, 348, 192, 62)
-            self.button(rect, label, self.state[key] >= 0.5, color)
+    # ============ LAYOUTS ====================================================
+    def perform_layout(self):
+        L = {}
+        gap = 13
+        bw = (604 - gap * 3) // 4
+        L["tabs"] = [pygame.Rect(18 + i * (bw + gap), 69, bw, 38) for i in range(4)]
+        sw = (604 - 13 * 2) // 3
+        L["subs"] = [pygame.Rect(18 + i * (sw + 13), 119, sw, 28) for i in range(3)]
+        L["pad"] = pygame.Rect(18, 159, 326, 196)
+        fx = 360
+        L["faders"] = [pygame.Rect(fx, 161 + i * 51, 622 - fx, 39) for i in range(4)]
+        aw = (604 - 14 * 2) // 3
+        L["actions"] = [pygame.Rect(18 + i * (aw + 14), 367, aw, 50) for i in range(3)]
+        return L
 
-    def loop_phase(self) -> float:
-        duration = max(0.1, self.state["loop_ms"] / 1000.0)
+    def loop_layout(self):
+        L = {}
+        L["progress"] = pygame.Rect(18, 107, 604, 13)
+        L["record"] = pygame.Rect(18, 134, 287, 144)
+        L["play"] = pygame.Rect(320, 134, 143, 144)
+        L["over"] = pygame.Rect(478, 134, 144, 144)
+        mw = (604 - 13 * 5) // 6
+        L["mods"] = [pygame.Rect(18 + i * (mw + 13), 292, mw, 58) for i in range(6)]
+        return L
+
+    def edit_layout(self):
+        L = {}
+        flexes = [1.15] + [1.0] * 8 + [1.8, 1.8]
+        total = sum(flexes)
+        avail = 604 - 9 * (len(flexes) - 1)
+        x = 18
+        L["presets"] = []
+        for fl in flexes:
+            w = round(avail * fl / total)
+            L["presets"].append(pygame.Rect(x, 88, w, 40))
+            x += w + 9
+        colw = (604 - 18) // 2
+        L["params"] = []
+        for i in range(8):
+            col, row = i % 2, i // 2
+            L["params"].append(pygame.Rect(18 + col * (colw + 18), 145 + row * 59, colw, 46))
+        L["demo"] = pygame.Rect(18, 381, 150, 36)
+        return L
+
+    # ============ PAGES ======================================================
+    def perform_page(self):
+        L = self.perform_layout()
+        mode = int(self.state["mode"]) % 4
+        color = MODE_COLOR[mode]
+        for i, r in enumerate(L["tabs"]):
+            self.lamp(r, MODE_COLOR[i], "on" if mode == i else "off", MODES[i], 15)
+        for i, r in enumerate(L["subs"]):
+            on = self.sub[mode] == i
+            self.lamp(r, color, "on" if on else "off", VARIANT_NAMES[mode][i], 12, radius=5)
+        # XY pad
+        xs, ys = XY_SPECS[mode]
+        fx = self.normalized(xs[1], xs[2], self.state[xs[0]], xs[4])
+        fy = self.normalized(ys[1], ys[2], self.state[ys[0]], ys[4])
+        self.scope(L["pad"], color, fx, fy, xs[3], ys[3])
+        for r, (k, label, lo, hi, c, unit, curve) in zip(L["faders"], PERFORM_SLIDERS):
+            self.fader(r, c, self.state[k], lo, hi, label, unit, curve)
+        # actions
+        rec = self.state["loop_record"] >= 0.5
+        self.lamp(L["actions"][0], TEAL, "on" if self.state["freeze"] >= 0.5 else "off", "FREEZE", 16, radius=7)
+        self.lamp(L["actions"][1], RED, "on" if (rec or self.is_flash("capture")) else "off", "CAPTURE", 16, radius=7)
+        self.lamp(L["actions"][2], GOLD, "on" if self.state["bypass"] >= 0.5 else "off", "BYPASS", 16, radius=7)
+
+    def loop_phase(self):
         if self.state["loop_record"] >= 0.5:
-            return min(1.0, (time.monotonic() - self.record_epoch) / 60.0)
+            return max(0.0, min(1.0, self.state["loop_ms"] / 60000.0))
         if self.state["loop_play"] < 0.5:
             return 0.0
         return max(0.0, min(1.0, self.state["loop_phase"]))
 
-    def loop_page(self) -> None:
-        duration = (
-            time.monotonic() - self.record_epoch
-            if self.state["loop_record"] >= 0.5
-            else self.state["loop_ms"] / 1000.0
-        )
-        self.text("PHRASE LOOP", (16, 68), 18)
-        self.text(f"{duration:05.1f} SEC", (624, 69), 16, MUTED, "topright")
-        progress = pygame.Rect(16, 96, 608, 12)
-        self.rounded(self.screen, progress, PANEL_2, 6)
-        fill = progress.copy()
-        fill.width = max(6, round(progress.width * self.loop_phase()))
-        self.rounded(self.screen, fill, RED if self.state["loop_record"] else GREEN, 6)
-
-        record_rect = pygame.Rect(16, 124, 292, 126)
-        recording = self.state["loop_record"] >= 0.5
-        self.button(
-            record_rect,
-            "STOP" if recording else "RECORD",
-            recording,
-            RED,
-            "MAX 60 SECONDS",
-        )
-        play_rect = pygame.Rect(320, 124, 146, 126)
-        self.button(play_rect, "PLAY", self.state["loop_play"] >= 0.5, GREEN)
-        dub_rect = pygame.Rect(478, 124, 146, 126)
-        self.button(
-            dub_rect,
-            "OVERDUB",
-            self.state["overdub_active"] >= 0.5,
-            ORANGE,
-        )
-
-        controls = (
-            ("undo", "UNDO", CYAN),
-            ("reverse", "REVERSE", PURPLE),
-            ("route", "POST FX" if self.state["loop_route"] else "PRE FX", CYAN),
-            ("clear", "HOLD CLEAR", YELLOW),
-        )
-        for index, (key, label, color) in enumerate(controls):
-            rect = pygame.Rect(16 + index * 152, 266, 140, 72)
-            active = (
-                key == "reverse" and self.state["loop_reverse"] >= 0.5
-            ) or (key == "route" and self.state["loop_route"] >= 0.5)
-            disabled = key == "undo" and self.state["undo_valid"] < 0.5
-            self.button(rect, label, active, color, disabled=disabled)
-            if key == "clear" and self.clear_progress > 0:
-                bar = pygame.Rect(rect.x + 6, rect.bottom - 9, rect.width - 12, 4)
-                pygame.draw.rect(self.screen, LINE, bar)
+    def loop_page(self):
+        L = self.loop_layout()
+        rec = self.state["loop_record"] >= 0.5
+        playing = self.state["loop_play"] >= 0.5 and not rec
+        self.text("PHRASE LOOP", (18, 82), "display", 20, (42, 34, 24), "midleft", (255, 255, 255))
+        secs = self.state["loop_ms"] / 1000.0
+        self.led(f"{secs:05.1f} SEC", (622, 82), 16, "midright")
+        # progress
+        pr = L["progress"]
+        pygame.draw.rect(self.screen, (199, 180, 136), pr, border_radius=4)
+        pygame.draw.rect(self.screen, (43, 41, 36), pr.inflate(3, 3), 2, border_radius=5)
+        frac = self.loop_phase()
+        if frac > 0:
+            c = RED if rec else GREEN
+            fw = max(4, round(pr.width * frac))
+            self.screen.blit(self.rounded_grad(fw, pr.height, [(0.0, shade(c, 0.30)), (0.58, c), (1.0, shade(c, -0.16))], 4), pr.topleft)
+        # transport
+        self.lamp(L["record"], RED, "on" if rec else "off", "STOP" if rec else "RECORD", 24, radius=9, sublabel="MAX 60 SECONDS", pulse=rec)
+        self.lamp(L["play"], GREEN, "on" if playing else "off", "PLAY", 21, radius=9)
+        self.lamp(L["over"], ORANGE, "on" if self.state["overdub_active"] >= 0.5 else "off", "OVERDUB", 17, radius=9)
+        # mods
+        undo_dead = self.state["undo_valid"] < 0.5
+        route = self.state["loop_route"] >= 0.5
+        defs = [
+            (BLUE, "dead" if undo_dead else "off", "UNDO"),
+            (PURPLE, "on" if self.state["loop_reverse"] >= 0.5 else "off", "REVERSE"),
+            (TEAL, "on" if route else "off", "POST FX" if route else "PRE FX"),
+            (GOLD, "off", "CLEAR"),
+            (BLUE, "on" if self.state["loop_halfspeed"] >= 0.5 else "off", "1/2 SPEED"),
+            (ORANGE, "on" if self.is_flash("fade") else "off", "FADE"),
+        ]
+        for r, (c, st, label) in zip(L["mods"], defs):
+            self.lamp(r, c, st, label, 13, radius=6)
+            if label == "CLEAR" and self.clear_progress > 0:
+                bar = pygame.Rect(r.x + 8, r.bottom - 10, r.width - 16, 4)
+                pygame.draw.rect(self.screen, (60, 50, 30), bar)
                 bar.width = round(bar.width * self.clear_progress)
-                pygame.draw.rect(self.screen, YELLOW, bar)
-
-        source = "POST-EFFECTS" if self.state["loop_route"] else "DRY INPUT"
-        status = "RECORDING"
-        color = RED
-        if self.state["overdub_active"] >= 0.5:
-            status, color = "OVERDUBBING", ORANGE
-        elif self.state["loop_play"] >= 0.5:
-            status, color = "PLAYING", GREEN
+                pygame.draw.rect(self.screen, GOLD, bar)
+        # status
+        if rec:
+            status, scol = "RECORDING", RED
+        elif self.state["overdub_active"] >= 0.5:
+            status, scol = "OVERDUBBING", ORANGE
+        elif playing:
+            status, scol = "PLAYING", GREEN
         elif self.state["loop_ms"] > 1050:
-            status, color = "READY", CYAN
+            status, scol = "STOPPED", SECONDARY
         else:
-            status, color = "EMPTY", MUTED
-        self.text(status, (16, 370), 22, color)
-        self.text(f"RECORD SOURCE  {source}", (624, 374), 14, MUTED, "topright")
+            status, scol = "EMPTY", (169, 156, 124)
+        self.text(status, (18, 405), "display", 22, scol, "midleft", (255, 255, 255))
+        self.text("RECORD SOURCE", (520, 408), "body", 12, MUTED, "midright")
+        self.text("DRY INPUT", (622, 408), "bold", 12, SECONDARY, "midright")
 
-    def edit_page(self) -> None:
-        self.text("PRESETS", (16, 63), 14, MUTED)
-        for index in range(4):
-            rect = pygame.Rect(90 + index * 70, 56, 58, 44)
-            self.button(
-                rect,
-                str(index + 1),
-                int(self.state["preset_slot"]) == index,
-                GREEN,
-            )
-        self.button(pygame.Rect(390, 56, 104, 44), "LOAD", False, GREEN)
-        self.button(pygame.Rect(506, 56, 118, 44), "SAVE", False, ORANGE)
+    def edit_page(self):
+        L = self.edit_layout()
+        self.text("PRESETS", (18, 64), "bold", 11, MUTED)
+        bank = self.preset_bank
+        slot = int(self.state["preset_slot"])
+        for i, r in enumerate(L["presets"]):
+            if i == 0:
+                self.lamp(r, PURPLE, "off", "A/B", 15, sublabel="9-16" if bank else "1-8")
+            elif 1 <= i <= 8:
+                s = bank * 8 + (i - 1)
+                self.lamp(r, GREEN, "on" if slot == s else "off", str(s + 1), 15)
+            elif i == 9:
+                self.lamp(r, GREEN, "on" if self.is_flash("preset_recall") else "off", "LOAD", 15)
+            else:
+                self.lamp(r, ORANGE, "on" if self.is_flash("preset_save") else "off", "SAVE", 15)
+        for r, (k, label, lo, hi, c, unit, curve) in zip(L["params"], EDIT_SLIDERS):
+            self.fader(r, c, self.state[k], lo, hi, label, unit, curve)
+        self.lamp(L["demo"], GREEN, "on" if self.state["demo"] >= 0.5 else "off", "DEMO INPUT", 14, radius=8)
+        self.text("USB INPUT IS SELECTED AUTOMATICALLY AT START", (622, 399), "body", 11, MUTED, "midright")
 
-        for index, spec in enumerate(EDIT_SLIDERS):
-            col = index % 2
-            row = index // 2
-            rect = pygame.Rect(16 + col * 308, 116 + row * 67, 296, 52)
-            self.slider(rect, spec)
-
-        demo_rect = pygame.Rect(16, 382, 190, 36)
-        self.button(demo_rect, "DEMO INPUT", self.state["demo"] >= 0.5, GREEN)
-        self.text(
-            "USB INPUT IS SELECTED AUTOMATICALLY AT START",
-            (624, 403),
-            12,
-            MUTED,
-            "midright",
-        )
-
-    def navigation(self) -> None:
-        pygame.draw.rect(self.screen, PANEL, (0, 424, WIDTH, 56))
-        labels = ("PERFORM", "LOOP", "EDIT")
-        for index, label in enumerate(labels):
-            rect = pygame.Rect(index * 213, 424, 214, 56)
-            active = index == self.page
-            if active:
-                pygame.draw.rect(self.screen, CYAN, (rect.x, rect.y, rect.width, 4))
-            self.text(label, rect.center, 16, TEXT if active else MUTED, "center")
-
-    def draw(self) -> None:
-        self.screen.fill(BG)
+    def draw(self):
+        self.screen.blit(self.faceplate, (0, 0))
         self.header()
         if self.page == 0:
             self.perform_page()
@@ -507,136 +673,131 @@ class PocketcosmUI:
             self.loop_page()
         else:
             self.edit_page()
-        self.navigation()
-        if time.monotonic() < self.notice_until:
-            notice_rect = pygame.Rect(208, 390, 224, 28)
-            self.rounded(self.screen, notice_rect, PANEL_2, 8)
-            self.text(self.notice, notice_rect.center, 12, TEXT, "center")
+        self.footer()
+        self.screen.blit(self.overlay, (0, 0))
         pygame.display.flip()
 
-    def slider_at(self, pos: tuple[int, int]) -> tuple[pygame.Rect, SliderSpec] | None:
-        if self.page == 0:
-            for row, spec in enumerate(PERFORM_SLIDERS):
-                rect = pygame.Rect(408, 110 + row * 57, 216, 46)
-                if rect.collidepoint(pos):
-                    return rect, spec
-        elif self.page == 2:
-            for index, spec in enumerate(EDIT_SLIDERS):
-                col, row = index % 2, index // 2
-                rect = pygame.Rect(16 + col * 308, 116 + row * 67, 296, 52)
-                if rect.collidepoint(pos):
-                    return rect, spec
-        return None
-
-    def update_slider(self, pos: tuple[int, int], rect: pygame.Rect, spec: SliderSpec) -> None:
-        amount = (pos[0] - rect.x) / rect.width
-        value = self.denormalized(spec, amount)
-        if spec.key in ("bpm", "pitch", "tone"):
+    # ============ INPUT ======================================================
+    def _fader_value(self, rect, spec, x):
+        k, label, lo, hi, c, unit, curve = spec
+        amount = max(0.0, min(1.0, (x - rect.x) / rect.width))
+        value = self.denormalized(lo, hi, amount, curve)
+        if k in ("bpm", "pitch", "tone"):
             value = round(value)
-        self.set_value(spec.key, value)
+        self.set_value(k, value)
 
-    def update_xy(self, pos: tuple[int, int]) -> None:
-        rect = pygame.Rect(16, 110, 378, 226)
-        x_amount = max(0, min(1, (pos[0] - rect.x) / rect.width))
-        y_amount = max(0, min(1, 1 - (pos[1] - rect.y) / rect.height))
-        x_spec, y_spec = self.xy_specs()
-        x_value = self.denormalized(x_spec, x_amount)
-        y_value = self.denormalized(y_spec, y_amount)
-        if x_spec.key in ("bpm", "pitch", "tone"):
-            x_value = round(x_value)
-        if y_spec.key in ("bpm", "pitch", "tone"):
-            y_value = round(y_value)
-        self.set_value(x_spec.key, x_value)
-        self.set_value(y_spec.key, y_value)
+    def update_xy(self, pos):
+        L = self.perform_layout()
+        pad = L["pad"]
+        mode = int(self.state["mode"]) % 4
+        xs, ys = XY_SPECS[mode]
+        xa = max(0.0, min(1.0, (pos[0] - pad.x) / pad.width))
+        ya = max(0.0, min(1.0, 1 - (pos[1] - pad.y) / pad.height))
+        for spec, amt in ((xs, xa), (ys, ya)):
+            v = self.denormalized(spec[1], spec[2], amt, spec[4])
+            if spec[0] in ("bpm", "pitch", "tone"):
+                v = round(v)
+            self.set_value(spec[0], v)
 
-    def pointer_down(self, pos: tuple[int, int]) -> None:
+    def pointer_down(self, pos):
         now = time.monotonic()
-        if pygame.Rect(572, 0, 68, 50).collidepoint(pos):
+        if hasattr(self, "exit_rect") and self.exit_rect.collidepoint(pos):
             self.running = False
             return
-
-        if pos[1] >= 424:
-            self.page = min(2, pos[0] // 213)
+        if pos[1] >= HEIGHT - 50:
+            self.page = min(2, pos[0] * 3 // WIDTH)
             return
 
         if self.page == 0:
-            if 58 <= pos[1] <= 100 and 16 <= pos[0] <= 624:
-                index = min(3, (pos[0] - 16) // 152)
-                self.set_value("mode", index)
-                return
-            if pygame.Rect(16, 110, 378, 226).collidepoint(pos):
-                self.drag = ("xy", pygame.Rect(16, 110, 378, 226), None)
+            L = self.perform_layout()
+            mode = int(self.state["mode"]) % 4
+            for i, r in enumerate(L["tabs"]):
+                if r.collidepoint(pos):
+                    self.set_value("mode", i)
+                    return
+            for i, r in enumerate(L["subs"]):
+                if r.collidepoint(pos):
+                    self.apply_variant(mode, i)
+                    return
+            if L["pad"].collidepoint(pos):
+                self.drag = ("xy", None, None)
                 self.update_xy(pos)
                 return
-            slider = self.slider_at(pos)
-            if slider:
-                rect, spec = slider
-                self.drag = ("slider", rect, spec)
-                self.update_slider(pos, rect, spec)
-                return
-            for index, key in enumerate(("freeze", "loop_record", "bypass")):
-                if pygame.Rect(16 + index * 204, 348, 192, 62).collidepoint(pos):
-                    self.toggle(key)
+            for r, spec in zip(L["faders"], PERFORM_SLIDERS):
+                if r.collidepoint(pos):
+                    self.drag = ("fader", r, spec)
+                    self._fader_value(r, spec, pos[0])
                     return
+            if L["actions"][0].collidepoint(pos):
+                self.toggle("freeze")
+            elif L["actions"][1].collidepoint(pos):
+                self.toggle("loop_record"); self.flash("capture")
+            elif L["actions"][2].collidepoint(pos):
+                self.toggle("bypass")
 
         elif self.page == 1:
-            if pygame.Rect(16, 124, 292, 126).collidepoint(pos):
+            L = self.loop_layout()
+            if L["record"].collidepoint(pos):
                 self.toggle("loop_record")
-            elif pygame.Rect(320, 124, 146, 126).collidepoint(pos):
+            elif L["play"].collidepoint(pos):
                 self.toggle("loop_play")
-            elif pygame.Rect(478, 124, 146, 126).collidepoint(pos):
+            elif L["over"].collidepoint(pos):
                 self.action("overdub")
             else:
-                rects = [pygame.Rect(16 + i * 152, 266, 140, 72) for i in range(4)]
-                if rects[0].collidepoint(pos) and self.state["undo_valid"] >= 0.5:
-                    self.action("undo")
-                elif rects[1].collidepoint(pos):
-                    self.toggle("loop_reverse")
-                elif rects[2].collidepoint(pos):
-                    self.toggle("loop_route")
-                elif rects[3].collidepoint(pos):
-                    self.press_target = "clear"
-                    self.press_started = now
+                for i, r in enumerate(L["mods"]):
+                    if not r.collidepoint(pos):
+                        continue
+                    if i == 0 and self.state["undo_valid"] >= 0.5:
+                        self.action("undo")
+                    elif i == 1:
+                        self.toggle("loop_reverse")
+                    elif i == 2:
+                        self.toggle("loop_route")
+                    elif i == 3:
+                        self.press_target = "clear"; self.press_started = now
+                    elif i == 4:
+                        self.toggle("loop_halfspeed")
+                    elif i == 5:
+                        self.action("fade"); self.flash("fade")
+                    return
 
         else:
-            for index in range(4):
-                if pygame.Rect(90 + index * 70, 56, 58, 44).collidepoint(pos):
-                    self.set_value("preset_slot", index)
+            L = self.edit_layout()
+            for i, r in enumerate(L["presets"]):
+                if not r.collidepoint(pos):
+                    continue
+                if i == 0:
+                    self.preset_bank ^= 1
+                elif 1 <= i <= 8:
+                    self.set_value("preset_slot", self.preset_bank * 8 + (i - 1))
+                elif i == 9:
+                    self.action("preset_recall"); self.flash("preset_recall")
+                else:
+                    self.action("preset_save"); self.flash("preset_save")
+                return
+            for r, spec in zip(L["params"], EDIT_SLIDERS):
+                if r.collidepoint(pos):
+                    self.drag = ("fader", r, spec)
+                    self._fader_value(r, spec, pos[0])
                     return
-            if pygame.Rect(390, 56, 104, 44).collidepoint(pos):
-                self.action("preset_recall")
-                self.notice = f"PRESET {int(self.state['preset_slot']) + 1} LOADED"
-                self.notice_until = time.monotonic() + 1.2
-                return
-            if pygame.Rect(506, 56, 118, 44).collidepoint(pos):
-                self.action("preset_save")
-                self.notice = f"PRESET {int(self.state['preset_slot']) + 1} SAVED"
-                self.notice_until = time.monotonic() + 1.2
-                return
-            slider = self.slider_at(pos)
-            if slider:
-                rect, spec = slider
-                self.drag = ("slider", rect, spec)
-                self.update_slider(pos, rect, spec)
-                return
-            if pygame.Rect(16, 382, 190, 36).collidepoint(pos):
+            if L["demo"].collidepoint(pos):
                 self.toggle("demo")
 
-    def pointer_move(self, pos: tuple[int, int]) -> None:
+    def pointer_move(self, pos):
         if not self.drag:
             return
         kind, rect, spec = self.drag
         if kind == "xy":
             self.update_xy(pos)
-        elif spec:
-            self.update_slider(pos, rect, spec)
+        elif kind == "fader":
+            self._fader_value(rect, spec, pos[0])
 
-    def pointer_up(self) -> None:
+    def pointer_up(self):
         self.drag = None
         self.press_target = None
         self.clear_progress = 0.0
 
-    def keydown(self, key: int) -> None:
+    def keydown(self, key):
         if key == pygame.K_F10:
             self.running = False
         elif key == pygame.K_ESCAPE:
@@ -664,8 +825,7 @@ class PocketcosmUI:
         elif key == pygame.K_BACKSPACE:
             self.action("clear")
         elif key in (pygame.K_6, pygame.K_7, pygame.K_8, pygame.K_9):
-            slot = key - pygame.K_6
-            self.set_value("preset_slot", slot)
+            self.set_value("preset_slot", key - pygame.K_6)
             self.action("preset_recall")
         elif key == pygame.K_0:
             self.action("preset_save")
@@ -688,16 +848,14 @@ class PocketcosmUI:
             self.set_value("onset", 0.3 if key == pygame.K_i else 0.85)
         elif key == pygame.K_t:
             now = time.monotonic()
-            self.tap_times = [stamp for stamp in self.tap_times if now - stamp < 3.0]
+            self.tap_times = [s for s in self.tap_times if now - s < 3.0]
             self.tap_times.append(now)
             if len(self.tap_times) >= 2:
-                intervals = [
-                    b - a for a, b in zip(self.tap_times[:-1], self.tap_times[1:])
-                ]
+                intervals = [b - a for a, b in zip(self.tap_times[:-1], self.tap_times[1:])]
                 bpm = max(40, min(200, 60 / (sum(intervals) / len(intervals))))
                 self.set_value("bpm", round(bpm))
 
-    def process_events(self) -> None:
+    def process_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
@@ -711,24 +869,21 @@ class PocketcosmUI:
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 self.pointer_up()
 
-    def update(self) -> None:
+    def update(self):
         now = time.monotonic()
         if self.press_target == "clear":
             self.clear_progress = min(1.0, (now - self.press_started) / 1.2)
             if self.clear_progress >= 1.0:
                 self.action("clear")
-                self.state["loop_record"] = 0.0
-                self.state["loop_play"] = 0.0
-                self.state["overdub_active"] = 0.0
+                for k in ("loop_record", "loop_play", "overdub_active", "loop_phase", "undo_valid"):
+                    self.state[k] = 0.0
                 self.state["loop_ms"] = 1000.0
-                self.state["loop_phase"] = 0.0
-                self.state["undo_valid"] = 0.0
                 self.press_target = None
                 self.clear_progress = 0.0
         if now - self.last_sync > 2.0:
             self.sync()
 
-    def run(self) -> int:
+    def run(self):
         self.sync()
         try:
             while self.running:

@@ -48,6 +48,8 @@
 #X obj 680 300 r pc-transport-stop;
 #X msg 680 330 0;
 #X msg 650 260 1;
+#X obj 760 420 pt-modeswitch 2;
+#X obj 760 460 switch~;
 #X connect 0 0 1 0;
 #X connect 1 0 2 0;
 #X connect 2 0 6 0;
@@ -104,3 +106,4 @@
 #X connect 45 0 2 0;
 #X connect 46 0 47 0;
 #X connect 47 0 2 0;
+#X connect 49 0 50 0;

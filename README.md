@@ -11,6 +11,10 @@ with a dedicated native Pygame touchscreen interface.
 - ALSA output
 - Optional class-compliant USB audio interface for live input
 
+The touchscreen interface uses a 1970s instrument-panel visual design. The
+required fonts (Paytone One, Saira Semi Condensed, Share Tech Mono) are bundled
+in `fonts/` and loaded relative to the app; no system font install is needed.
+
 ## Installation
 
 Clone the project to `/home/pi/pocketcosm`, then install the included user
@@ -34,11 +38,11 @@ disabled automatically.
 
 Interface:
 
-- Perform: effect mode, Texture/Density XY pad, macro controls, Freeze,
-  Capture, and Bypass
-- Loop: record, play, overdub, undo, reverse, pre/post routing, loop progress,
-  and hold-to-clear
-- Edit: presets and detailed sound controls
+- Perform: effect mode, per-engine variant row (three variants each),
+  Texture/Density XY pad, macro controls, Freeze, Capture, and Bypass
+- Loop: record, play, overdub, undo, reverse, pre/post routing, half-speed,
+  fade, loop progress, and hold-to-clear
+- Edit: 16 presets (A/B banks) and detailed sound controls
 - Tap the bottom navigation bar or press Tab to change pages
 - Tap the EXIT button in the top-right corner to close Pocketcosm
 - Press F10 to close Pocketcosm
@@ -81,7 +85,7 @@ otherwise enable DEMO.
 Phrase looper:
 
 - Up to 60 seconds
-- Record, overdub, play, undo, reverse, and clear
+- Record, overdub, play, undo, reverse, half-speed, fade, and clear
 - Pre/post-effects recording route
 
 MIDI:
@@ -92,6 +96,7 @@ MIDI:
 - CC 1 mix, 2 feedback, 3 grain, 4 space, 5 tone, 6 density,
   7 pitch, 8 pitch mix
 - Notes 36-40 control record, play, freeze, overdub, and undo
+- Incoming MIDI is echoed to the MIDI output (Thru)
 
 Launch or stop the app with the `Pocketcosm` desktop icon, or run:
 
