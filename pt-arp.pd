@@ -4,7 +4,7 @@
 #X obj 20 80 metro 250;
 #X obj 130 20 r pc-bpm;
 #X obj 130 50 max 30;
-#X obj 130 80 expr 30000/$f1;
+#X obj 130 80 expr (60000/$f1)*$f2;
 #X obj 20 115 f 0;
 #X obj 70 115 + 1;
 #X obj 20 145 mod 4;
@@ -30,8 +30,8 @@
 #X obj 120 360 *~;
 #X obj 20 375 hip~ 60;
 #X obj 120 395 hip~ 60;
-#X obj 20 410 s~ pc-arp-l;
-#X obj 120 430 s~ pc-arp-r;
+#X obj 20 410 s~ pc-fx-l;
+#X obj 120 430 s~ pc-fx-r;
 #X obj 350 300 +~ 0.75;
 #X obj 460 20 r pc-onset;
 #X msg 460 50 0;
@@ -50,6 +50,11 @@
 #X msg 650 260 1;
 #X obj 760 420 pt-modeswitch 2;
 #X obj 760 460 switch~;
+#X obj 650 300 pack f 40;
+#X obj 650 330 line~;
+#X obj 650 360 *~;
+#X obj 740 360 *~;
+#X obj 800 80 r pc-subdivision;
 #X connect 0 0 1 0;
 #X connect 1 0 2 0;
 #X connect 2 0 6 0;
@@ -91,8 +96,6 @@
 #X connect 28 0 41 0;
 #X connect 40 0 29 0;
 #X connect 41 0 30 0;
-#X connect 29 0 31 0;
-#X connect 30 0 32 0;
 #X connect 36 0 37 0;
 #X connect 37 0 38 0;
 #X connect 38 0 39 0;
@@ -107,3 +110,12 @@
 #X connect 46 0 47 0;
 #X connect 47 0 2 0;
 #X connect 49 0 50 0;
+#X connect 49 1 51 0;
+#X connect 51 0 52 0;
+#X connect 29 0 53 0;
+#X connect 52 0 53 1;
+#X connect 53 0 31 0;
+#X connect 30 0 54 0;
+#X connect 52 0 54 1;
+#X connect 54 0 32 0;
+#X connect 55 0 5 1;

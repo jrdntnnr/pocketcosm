@@ -62,32 +62,39 @@ Multi Delay and Micro Loop — are absent**. The redesigned UI already has the
 right shape (4 bank tabs × 2–3 sub-mode effects), so most of this is DSP +
 wiring, not layout. ★ = top priority · 🔬 = needs on-device iteration.
 
-## Phase 7 — FX-bus refactor (enabler) 🔬
-Replace the per-effect `pc-cloud/glitch/...` sends + the gating matrix in
-`pt-output` with a single shared `pc-fx-l/r` bus, written only by the active
-(`switch~`-gated, gain-ramped) effect. Removes the N-wide summing matrix so new
-engines cost ~one effect's DSP and ~no extra wiring. Core signal path — verify
-on device. Unblocks 8/9/11.
+## Phase 7 — FX-bus refactor (enabler)  ✅ (built, untested on device)
+`pt-modeswitch` gained a second outlet (immediate active flag); every effect
+now multiplies its output by a 40 ms gain ramp from that flag and writes the
+shared `pc-fx-l/r` bus, so only the active effect contributes and transitions
+crossfade cleanly. `pt-output` reads `pc-fx` once. New engines now cost just a
+`switch~` + gain + bus send — no `pt-output` wiring.
+Note: the old per-effect mode-gating matrix in `pt-output` is left in place but
+disconnected (reads now-unused sends → silent); prune in a later cleanup.
 
-## Phase 8 — Multi Delay bank  ★ (missing family)
-New tempo-synced multi-tap delay engine. Two effects to fill the bank:
-MULTI-TAP (rhythmic taps) and PING-PONG / DOTTED (stereo, dotted/triplet feel).
-Controls: tap count, spread, feedback. Closes Multi Delay (2 of 11).
+## Phase 8 — Multi Delay bank  ✅ (built, untested on device)
+New tempo-synced stereo multi-tap delay engine (`pt-multidelay.pd`, mode 4):
+four beat-divided taps (ping-pong L/R) with capped feedback and a safety clip.
+Sub-modes DUAL / PING / SWARM (macros). Tabbed in the UI (blue).
 
-## Phase 9 — Micro Loop bank  ★ (missing family)
-New short-buffer looping/repeat engine. Three effects: REPEAT (short forward
-loop), STRETCH (pitch / half-speed repeat), STAB (gated retrigger). Closes
-Micro Loop (3 of 11).
+## Phase 9 — Micro Loop bank  ✅ (built, untested on device)
+New short-buffer stutter/repeat engine (`pt-microloop.pd`, mode 5): a
+40–500 ms window replayed under a raised-cosine envelope (click-free), loop
+length from GRAIN. Sub-modes REPEAT / STAB / STRETCH (macros). Tabbed (green).
+
+> Implemented as a flat 6-engine catalog (modes 0–5) shown as 6 effect tabs,
+> rather than re-banking to the Microcosm's 4-bank taxonomy. Delivers both
+> missing algorithm families as real DSP. Re-banking/labeling can follow.
 
 > Phases 8–9 also re-bank the four tabs to the Microcosm taxonomy
 > (GRANULES · GLITCH · MULTI-DELAY · MICRO-LOOP), fold Arp/Reverse in as
 > sub-modes or extras, and upgrade the placeholder macro-variants into the
 > real per-bank sub-mode effects.
 
-## Phase 10 — Tempo subdivisions / quantization  ★
-Time-division selector (1/4, 1/8, 1/8T, 1/16, dotted) for every synced effect
-(Glitch, Arp, Multi Delay, Micro Loop). UI control + MIDI. Cheap, high musical
-payoff; a real interaction gap today.
+## Phase 10 — Tempo subdivisions / quantization  ★ ✅ (built, untested on device)
+`pc-subdivision` (beat fraction) multiplies the beat in the synced engines
+(Glitch, Arp, Multi Delay). UI SYNC button on EDIT cycles 1/4 · 1/8 · 1/8T ·
+1/16 · 1/8D and re-sends BPM so the change applies immediately. (Micro Loop
+length stays GRAIN-driven, not beat-synced.)
 
 ## Phase 11 — Granular density / voice count  🔬
 Raise grain-voice counts in Granules/Reverse for dense clouds, tuned to the CPU
