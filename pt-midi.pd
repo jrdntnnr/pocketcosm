@@ -97,6 +97,8 @@
 #X obj 120 80 s pc-transport-start;
 #X obj 180 80 s pc-transport-continue;
 #X obj 260 80 s pc-transport-stop;
+#X obj 760 400 midiin;
+#X obj 760 440 midiout;
 #X connect 0 0 1 0;
 #X connect 1 0 2 0;
 #X connect 1 1 95 0;
@@ -187,3 +189,4 @@
 #X connect 92 0 75 1;
 #X connect 93 0 76 1;
 #X connect 94 0 77 1;
+#X connect 98 0 99 0;

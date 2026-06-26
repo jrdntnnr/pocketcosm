@@ -93,6 +93,7 @@ DEFAULTS = {
     "loop_play": 0.0,
     "loop_reverse": 0.0,
     "loop_route": 0.0,
+    "loop_halfspeed": 0.0,
     "loop_ms": 1000.0,
     "loop_phase": 0.0,
     "undo_valid": 0.0,
@@ -476,13 +477,17 @@ class PocketcosmUI:
             ("undo", "UNDO", CYAN),
             ("reverse", "REVERSE", PURPLE),
             ("route", "POST FX" if self.state["loop_route"] else "PRE FX", CYAN),
-            ("clear", "HOLD CLEAR", YELLOW),
+            ("clear", "CLEAR", YELLOW),
+            ("loop_halfspeed", "1/2 SPEED", (82, 145, 244)),
+            ("fade", "FADE", ORANGE),
         )
         for index, (key, label, color) in enumerate(controls):
-            rect = pygame.Rect(16 + index * 152, 266, 140, 72)
+            rect = pygame.Rect(16 + index * 100, 266, 94, 72)
             active = (
-                key == "reverse" and self.state["loop_reverse"] >= 0.5
-            ) or (key == "route" and self.state["loop_route"] >= 0.5)
+                (key == "reverse" and self.state["loop_reverse"] >= 0.5)
+                or (key == "route" and self.state["loop_route"] >= 0.5)
+                or (key == "loop_halfspeed" and self.state["loop_halfspeed"] >= 0.5)
+            )
             disabled = key == "undo" and self.state["undo_valid"] < 0.5
             self.button(rect, label, active, color, disabled=disabled)
             if key == "clear" and self.clear_progress > 0:
@@ -642,7 +647,7 @@ class PocketcosmUI:
             elif pygame.Rect(478, 124, 146, 126).collidepoint(pos):
                 self.action("overdub")
             else:
-                rects = [pygame.Rect(16 + i * 152, 266, 140, 72) for i in range(4)]
+                rects = [pygame.Rect(16 + i * 100, 266, 94, 72) for i in range(6)]
                 if rects[0].collidepoint(pos) and self.state["undo_valid"] >= 0.5:
                     self.action("undo")
                 elif rects[1].collidepoint(pos):
@@ -652,6 +657,10 @@ class PocketcosmUI:
                 elif rects[3].collidepoint(pos):
                     self.press_target = "clear"
                     self.press_started = now
+                elif rects[4].collidepoint(pos):
+                    self.toggle("loop_halfspeed")
+                elif rects[5].collidepoint(pos):
+                    self.action("fade")
 
         else:
             if pygame.Rect(16, 64, 40, 36).collidepoint(pos):

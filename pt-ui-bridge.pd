@@ -1,7 +1,7 @@
 #N canvas 20 20 1240 820 10;
 #X obj 20 20 netreceive -u 9001;
 #X obj 20 50 route set action sync;
-#X obj 20 85 route demo freeze bypass mode grain delay bpm pitch pitchmix texture density onset tone feedback space mix loop_record loop_play loop_reverse loop_route preset_slot;
+#X obj 20 85 route demo freeze bypass mode grain delay bpm pitch pitchmix texture density onset tone feedback space mix loop_record loop_play loop_reverse loop_route preset_slot loop_halfspeed;
 #X obj 20 130 t f f;
 #X obj 20 160 s pc-demo;
 #X obj 85 160 s pc-demo-r;
@@ -65,7 +65,7 @@
 #X obj 420 290 t f f;
 #X obj 420 320 s pc-preset-slot;
 #X obj 515 320 s pc-preset-slot-r;
-#X obj 20 370 route overdub undo clear preset_recall preset_save;
+#X obj 20 370 route overdub undo clear preset_recall preset_save fade;
 #X obj 20 400 s pc-loop-overdub;
 #X obj 145 400 s pc-loop-undo;
 #X obj 250 400 s pc-loop-clear;
@@ -110,6 +110,10 @@
 #X obj 720 395 list trim;
 #X obj 1100 535 pt-ui-send loop_phase pc-loop-phase;
 #X obj 1100 560 pt-ui-send undo_valid pc-loop-undo-valid;
+#X obj 200 430 t f f;
+#X obj 200 460 s pc-loop-halfspeed;
+#X obj 320 460 s pc-loop-halfspeed-r;
+#X obj 480 430 s pc-loop-fade;
 #X connect 0 0 1 0;
 #X connect 1 0 2 0;
 #X connect 1 1 66 0;
@@ -189,3 +193,7 @@
 #X connect 76 0 74 0;
 #X connect 104 0 105 0;
 #X connect 105 0 106 0;
+#X connect 2 21 111 0;
+#X connect 111 0 112 0;
+#X connect 111 1 113 0;
+#X connect 66 5 114 0;
