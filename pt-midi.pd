@@ -50,8 +50,8 @@
 #X obj 500 290 s pc-density;
 #X obj 570 200 ctlin 7;
 #X obj 570 230 / 127;
-#X obj 570 260 * 24;
-#X obj 570 290 - 12;
+#X obj 570 260 * 48;
+#X obj 570 290 - 24;
 #X obj 570 320 t f f;
 #X obj 570 350 s pc-pitch-r;
 #X obj 650 350 s pc-pitch;
