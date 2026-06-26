@@ -116,6 +116,8 @@
 #X obj 820 580 +~;
 #X obj 700 620 +~;
 #X obj 820 620 +~;
+#X obj 300 380 r~ pc-fx-l;
+#X obj 400 380 r~ pc-fx-r;
 #X connect 0 0 21 0;
 #X connect 1 0 22 0;
 #X connect 2 0 23 0;
@@ -255,5 +257,5 @@
 #X connect 112 0 114 1;
 #X connect 113 0 115 1;
 #X connect 114 0 116 1;
-#X connect 115 0 83 0;
-#X connect 116 0 84 0;
+#X connect 117 0 83 0;
+#X connect 118 0 84 0;

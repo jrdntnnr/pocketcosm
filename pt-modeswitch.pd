@@ -11,6 +11,7 @@
 #X text 180 30 mode-gated DSP switch: outputs 1 when pc-mode == \$1 \,
 else 0 after a 60ms tail so the output crossfade in pt-output finishes
 before DSP stops;
+#X obj 150 250 outlet;
 #X connect 0 0 1 0;
 #X connect 1 0 2 0;
 #X connect 2 0 6 0;
@@ -21,3 +22,4 @@ before DSP stops;
 #X connect 5 0 6 0;
 #X connect 6 0 7 0;
 #X connect 7 0 8 0;
+#X connect 1 0 10 0;

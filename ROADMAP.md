@@ -62,11 +62,14 @@ Multi Delay and Micro Loop — are absent**. The redesigned UI already has the
 right shape (4 bank tabs × 2–3 sub-mode effects), so most of this is DSP +
 wiring, not layout. ★ = top priority · 🔬 = needs on-device iteration.
 
-## Phase 7 — FX-bus refactor (enabler)  ⏸ deferred
-Original plan: replace the per-effect sends + `pt-output` gating matrix with a
-shared `pc-fx-l/r` bus. Deferred — for adding only two engines, extending the
-existing gating matrix by two (modes 4/5) was lower-risk than rewriting the
-core signal path. Revisit as a cleanup if the catalog grows further.
+## Phase 7 — FX-bus refactor (enabler)  ✅ (built, untested on device)
+`pt-modeswitch` gained a second outlet (immediate active flag); every effect
+now multiplies its output by a 40 ms gain ramp from that flag and writes the
+shared `pc-fx-l/r` bus, so only the active effect contributes and transitions
+crossfade cleanly. `pt-output` reads `pc-fx` once. New engines now cost just a
+`switch~` + gain + bus send — no `pt-output` wiring.
+Note: the old per-effect mode-gating matrix in `pt-output` is left in place but
+disconnected (reads now-unused sends → silent); prune in a later cleanup.
 
 ## Phase 8 — Multi Delay bank  ✅ (built, untested on device)
 New tempo-synced stereo multi-tap delay engine (`pt-multidelay.pd`, mode 4):
