@@ -20,8 +20,8 @@
 #X obj 300 310 +~;
 #X obj 380 310 hip~ 30;
 #X obj 300 350 hip~ 30;
-#X obj 380 390 s~ pc-fx-l;
-#X obj 300 390 s~ pc-fx-r;
+#X obj 380 390 throw~ pc-fx-l;
+#X obj 300 390 throw~ pc-fx-r;
 #X obj 300 430 +~;
 #X obj 300 470 *~ 0.5;
 #X obj 100 430 r pc-feedback;

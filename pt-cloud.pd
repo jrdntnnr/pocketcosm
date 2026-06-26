@@ -33,8 +33,8 @@
 #X obj 130 470 *~;
 #X obj 20 500 hip~ 30;
 #X obj 130 500 hip~ 30;
-#X obj 20 530 s~ pc-fx-l;
-#X obj 130 530 s~ pc-fx-r;
+#X obj 20 530 throw~ pc-fx-l;
+#X obj 130 530 throw~ pc-fx-r;
 #X obj 240 380 *~;
 #X obj 330 380 *~;
 #X obj 500 20 r pc-density;

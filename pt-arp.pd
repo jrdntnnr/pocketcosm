@@ -30,8 +30,8 @@
 #X obj 120 360 *~;
 #X obj 20 375 hip~ 60;
 #X obj 120 395 hip~ 60;
-#X obj 20 410 s~ pc-fx-l;
-#X obj 120 430 s~ pc-fx-r;
+#X obj 20 410 throw~ pc-fx-l;
+#X obj 120 430 throw~ pc-fx-r;
 #X obj 350 300 +~ 0.75;
 #X obj 460 20 r pc-onset;
 #X msg 460 50 0;
