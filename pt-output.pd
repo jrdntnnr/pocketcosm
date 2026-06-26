@@ -74,6 +74,8 @@
 #X obj 600 540 unpack f f f;
 #X obj 620 600 t f f;
 #X obj 760 600 expr if($f1>0\,25\,700);
+#X obj 300 410 *~ 14;
+#X obj 400 410 *~ 14;
 #X connect 46 0 48 1;
 #X connect 47 0 49 1;
 #X connect 48 0 2 0;
@@ -153,8 +155,10 @@
 #X connect 62 0 63 0;
 #X connect 63 0 2 2;
 #X connect 63 0 3 2;
-#X connect 64 0 48 0;
-#X connect 65 0 49 0;
+#X connect 64 0 75 0;
+#X connect 75 0 48 0;
+#X connect 65 0 76 0;
+#X connect 76 0 49 0;
 #X connect 66 0 67 0;
 #X connect 67 0 68 0;
 #X connect 67 1 69 0;
